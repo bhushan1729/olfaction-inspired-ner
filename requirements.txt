@@ -1,0 +1,14 @@
+# Core dependencies for olfaction-inspired NER
+torch>=2.0.0
+numpy>=1.24.0
+scikit-learn>=1.3.0
+seqeval>=1.2.2  # NER evaluation metrics
+python-crfsuite>=0.9.9  # CRF layer
+matplotlib>=3.7.0
+seaborn>=0.12.0
+pandas>=2.0.0
+tqdm>=4.65.0
+
+# Optional but recommended
+tensorboard>=2.13.0
+wandb>=0.15.0  # For experiment tracking (optional)

@@ -1,0 +1,58 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Data
+data/raw/*.txt
+data/*.zip
+data/glove*
+
+# Model checkpoints
+results/
+runs/
+*.pt
+*.pth
+*.ckpt
+
+# Analysis outputs
+analysis_results/
+comparison/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+tensorboard/
+
+# OS
+.DS_Store
+Thumbs.db
