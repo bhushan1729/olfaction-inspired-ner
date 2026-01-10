@@ -260,7 +260,7 @@ def train(config, experiment_name, save_dir):
     print("="*50)
     
     # Load best model
-    checkpoint = torch.load(os.path.join(save_dir, 'best_model.pt'))
+    checkpoint = torch.load(os.path.join(save_dir, 'best_model.pt'), weights_only=False)
     model.load_state_dict(checkpoint['model_state_dict'])
     
     test_metrics = evaluate_model(model, test_loader, vocab_info['idx2label'], device)
