@@ -26,7 +26,7 @@
 
 ### 1. Receptor Activation Heatmap
 
-![Receptor Heatmap](docs/receptor_heatmap.png)
+![Receptor Heatmap](receptor_heatmap.png)
 
 **Analysis**:
 - Clear specialization patterns visible across receptors
@@ -42,7 +42,7 @@
 
 ### 2. t-SNE Visualization of Glomerular Representations
 
-![t-SNE Clustering](docs/glomeruli_tsne.png)
+![t-SNE Clustering](glomeruli_tsne.png)
 
 **Analysis**:
 - **LOC (blue)**: Forms tight cluster in lower-left region
@@ -56,7 +56,7 @@
 
 ### 3. Model Performance Comparison
 
-![Model Comparison](docs/model_comparison.png)
+![Model Comparison](model_comparison.png)
 
 **Overall F1 Scores**:
 - No Glomeruli: 73.53% (best olfactory variant)
