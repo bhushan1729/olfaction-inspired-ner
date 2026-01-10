@@ -41,22 +41,39 @@ class CoNLL2003Dataset(Dataset):
 
 def download_conll2003(data_dir: str = './data/raw'):
     """
-    Download CoNLL-2003 dataset.
-    Note: This downloads from a public mirror. For official version, 
-    you may need to obtain it from the original source.
+    Download CoNLL-2003 dataset from Hugging Face.
+    Uses the datasets library for reliable access.
     """
+    try:
+        from datasets import load_dataset
+    except ImportError:
+        print("Installing datasets library...")
+        import subprocess
+        subprocess.check_call(['pip', 'install', '-q', 'datasets'])
+        from datasets import load_dataset
+    
     os.makedirs(data_dir, exist_ok=True)
     
-    base_url = "https://raw.githubusercontent.com/davidsbatista/NER-datasets/master/CONLL2003/"
-    files = ['train.txt', 'valid.txt', 'test.txt']
+    print("Downloading CoNLL-2003 from Hugging Face...")
+    dataset = load_dataset("eriktks/conll2003")
     
-    for file in files:
-        filepath = os.path.join(data_dir, file)
+    # Convert to CoNLL format and save
+    for split_name, hf_split in [('train', 'train'), ('valid', 'validation'), ('test', 'test')]:
+        filepath = os.path.join(data_dir, f'{split_name}.txt')
+        
         if not os.path.exists(filepath):
-            print(f"Downloading {file}...")
-            url = base_url + file
-            urllib.request.urlretrieve(url, filepath)
-            print(f"Downloaded {file}")
+            print(f"Creating {split_name}.txt...")
+            with open(filepath, 'w', encoding='utf-8') as f:
+                for example in dataset[hf_split]:
+                    # Write each token with its NER tag
+                    for token, ner_tag in zip(example['tokens'], example['ner_tags']):
+                        tag_name = dataset[hf_split].features['ner_tags'].feature.int2str(ner_tag)
+                        # CoNLL format: token pos chunk ner_tag
+                        f.write(f"{token} X X {tag_name}\n")
+                    f.write("\n")  # Empty line between sentences
+            print(f"✓ Created {split_name}.txt")
+        else:
+            print(f"✓ {split_name}.txt already exists")
     
     return data_dir
 
