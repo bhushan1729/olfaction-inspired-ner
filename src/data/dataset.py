@@ -55,7 +55,13 @@ def download_conll2003(data_dir: str = './data/raw'):
     os.makedirs(data_dir, exist_ok=True)
     
     print("Downloading CoNLL-2003 from Hugging Face...")
-    dataset = load_dataset("eriktks/conll2003")
+    # Use trust_remote_code for newer datasets library
+    try:
+        dataset = load_dataset("conll2003", trust_remote_code=True)
+    except:
+        # Fallback to alternative source
+        print("Trying alternative dataset source...")
+        dataset = load_dataset("tner/conll2003")
     
     # Convert to CoNLL format and save
     for split_name, hf_split in [('train', 'train'), ('valid', 'validation'), ('test', 'test')]:
@@ -65,12 +71,23 @@ def download_conll2003(data_dir: str = './data/raw'):
             print(f"Creating {split_name}.txt...")
             with open(filepath, 'w', encoding='utf-8') as f:
                 for example in dataset[hf_split]:
-                    # Write each token with its NER tag
-                    for token, ner_tag in zip(example['tokens'], example['ner_tags']):
-                        tag_name = dataset[hf_split].features['ner_tags'].feature.int2str(ner_tag)
-                        # CoNLL format: token pos chunk ner_tag
-                        f.write(f"{token} X X {tag_name}\n")
-                    f.write("\n")  # Empty line between sentences
+                    # Handle different dataset formats
+                    if 'tokens' in example:
+                        tokens = example['tokens']
+                        ner_tags = example['ner_tags']
+                        
+                        # Get tag names
+                        for token, ner_tag in zip(tokens, ner_tags):
+                            if isinstance(ner_tag, int):
+                                # Convert int to tag name
+                                tag_names = ['O', 'B-PER', 'I-PER', 'B-ORG', 'I-ORG', 'B-LOC', 'I-LOC', 'B-MISC', 'I-MISC']
+                                tag_name = tag_names[ner_tag] if ner_tag < len(tag_names) else 'O'
+                            else:
+                                tag_name = ner_tag
+                            
+                            # CoNLL format: token pos chunk ner_tag
+                            f.write(f"{token} X X {tag_name}\n")
+                        f.write("\n")  # Empty line between sentences
             print(f"✓ Created {split_name}.txt")
         else:
             print(f"✓ {split_name}.txt already exists")
