@@ -7,7 +7,6 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 from typing import List, Tuple, Dict
 from collections import Counter
-import urllib.request
 import os
 
 
@@ -41,56 +40,57 @@ class CoNLL2003Dataset(Dataset):
 
 def download_conll2003(data_dir: str = './data/raw'):
     """
-    Download CoNLL-2003 dataset from Hugging Face.
-    Uses the datasets library for reliable access.
+    Download CoNLL-2003 dataset directly from GitHub.
     """
-    try:
-        from datasets import load_dataset
-    except ImportError:
-        print("Installing datasets library...")
-        import subprocess
-        subprocess.check_call(['pip', 'install', '-q', 'datasets'])
-        from datasets import load_dataset
+    import requests
     
     os.makedirs(data_dir, exist_ok=True)
     
-    print("Downloading CoNLL-2003 from Hugging Face...")
-    # Use trust_remote_code for newer datasets library
-    try:
-        dataset = load_dataset("conll2003", trust_remote_code=True)
-    except:
-        # Fallback to alternative source
-        print("Trying alternative dataset source...")
-        dataset = load_dataset("tner/conll2003")
+    print("Downloading CoNLL-2003 dataset...")
     
-    # Convert to CoNLL format and save
-    for split_name, hf_split in [('train', 'train'), ('valid', 'validation'), ('test', 'test')]:
-        filepath = os.path.join(data_dir, f'{split_name}.txt')
+    # Use a working GitHub mirror
+    base_url = "https://raw.githubusercontent.com/patverga/torch-ner-nlp-from-scratch/master/data/conll2003/"
+    
+    file_mapping = {
+        'train': 'eng.train',
+        'valid': 'eng.testa', 
+        'test': 'eng.testb'
+    }
+    
+    for split_name, filename in file_mapping.items():
+        output_path = os.path.join(data_dir, f'{split_name}.txt')
         
-        if not os.path.exists(filepath):
-            print(f"Creating {split_name}.txt...")
-            with open(filepath, 'w', encoding='utf-8') as f:
-                for example in dataset[hf_split]:
-                    # Handle different dataset formats
-                    if 'tokens' in example:
-                        tokens = example['tokens']
-                        ner_tags = example['ner_tags']
-                        
-                        # Get tag names
-                        for token, ner_tag in zip(tokens, ner_tags):
-                            if isinstance(ner_tag, int):
-                                # Convert int to tag name
-                                tag_names = ['O', 'B-PER', 'I-PER', 'B-ORG', 'I-ORG', 'B-LOC', 'I-LOC', 'B-MISC', 'I-MISC']
-                                tag_name = tag_names[ner_tag] if ner_tag < len(tag_names) else 'O'
-                            else:
-                                tag_name = ner_tag
-                            
-                            # CoNLL format: token pos chunk ner_tag
-                            f.write(f"{token} X X {tag_name}\n")
-                        f.write("\n")  # Empty line between sentences
-            print(f"✓ Created {split_name}.txt")
-        else:
+        if os.path.exists(output_path):
             print(f"✓ {split_name}.txt already exists")
+            continue
+        
+        url = base_url + filename
+        print(f"Downloading {split_name}.txt from {url}...")
+        
+        try:
+            response = requests.get(url, timeout=30)
+            response.raise_for_status()
+            
+            # Save the file
+            with open(output_path, 'w', encoding='utf-8') as f:
+                f.write(response.text)
+            
+            print(f"✓ Downloaded {split_name}.txt")
+            
+        except Exception as e:
+            print(f"Error downloading {split_name}: {e}")
+            print("Trying alternative source...")
+            
+            # Fallback: try another source
+            alt_url = f"https://data.deepai.org/conll2003/{filename}"
+            try:
+                response = requests.get(alt_url, timeout=30)
+                response.raise_for_status()
+                with open(output_path, 'w', encoding='utf-8') as f:
+                    f.write(response.text)
+                print(f"✓ Downloaded {split_name}.txt from alternative source")
+            except:
+                raise RuntimeError(f"Failed to download {split_name}.txt. Please download manually from: {url}")
     
     return data_dir
 
