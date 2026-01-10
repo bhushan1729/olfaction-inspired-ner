@@ -204,11 +204,13 @@ def train(config, experiment_name, save_dir):
         print("\nEvaluating on validation set...")
         valid_metrics = evaluate_model(model, valid_loader, vocab_info['idx2label'], device)
         
-        # Log metrics
+        # Log metrics (skip dictionaries)
         for key, value in train_metrics.items():
-            writer.add_scalar(f'train/{key}', value, epoch)
+            if not isinstance(value, dict):
+                writer.add_scalar(f'train/{key}', value, epoch)
         for key, value in valid_metrics.items():
-            writer.add_scalar(f'valid/{key}', value, epoch)
+            if not isinstance(value, dict):
+                writer.add_scalar(f'valid/{key}', value, epoch)
         
         # Print metrics
         print(f"\nTrain Loss: {train_metrics['total_loss']:.4f}")
