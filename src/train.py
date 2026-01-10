@@ -168,7 +168,7 @@ def train(config, experiment_name, save_dir):
     
     # Learning rate scheduler
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode='max', factor=0.5, patience=2, verbose=True
+        optimizer, mode='max', factor=0.5, patience=2
     )
     
     # Tensorboard
