@@ -6,20 +6,20 @@
 
 ## Performance Comparison
 
-| Metric | ReLU | GELU | Δ |
-|--------|------|------|---|
-| **Test F1** | **72.56%** | **73.06%** | **+0.50%** ✅ |
-| Precision | 76.79% | 78.73% | +1.94% |
-| Recall | 68.77% | 68.15% | -0.62% |
+| Metric | Baseline | ReLU | GELU | Δ (GELU-ReLU) |
+|--------|----------|------|------|---------------|
+| **Test F1** | **77.30%** | 72.56% | **73.06%** | **+0.50%** ✅ |
+| Precision | 80.08% | 76.79% | 78.73% | +1.94% |
+| Recall | 74.72% | 68.77% | 68.15% | -0.62% |
 
 ## Per-Entity F1 Scores
 
-| Entity | ReLU | GELU | Δ |
-|--------|------|------|---|
-| LOC | 81.38% | 80.82% | -0.56% |
-| **MISC** | 62.27% | **67.61%** | **+5.34%** ✨ |
-| ORG | 68.99% | 70.67% | +1.68% |
-| PER | 71.20% | 69.14% | -2.06% |
+| Entity | Baseline | ReLU | GELU | Δ (GELU-ReLU) |
+|--------|----------|------|------|---------------|
+| LOC | 85.28% | 81.38% | 80.82% | -0.56% |
+| **MISC** | 67.84% | 62.27% | **67.61%** | **+5.34%** ✨ |
+| ORG | 73.40% | 68.99% | 70.67% | +1.68% |
+| PER | 76.97% | 71.20% | 69.14% | -2.06% |
 
 ---
 
@@ -41,10 +41,11 @@
 
 ## Conclusion
 
-✅ **GELU provides modest improvement** (+0.5% F1)  
-✅ **Strong gains on MISC** (+5.34%) - typically hardest category  
+✅ **GELU improves olfactory model** (+0.5% F1 over ReLU)  
+✅ **Strong gains on MISC** (+5.34%) - matches baseline on this category!  
+⚠️ **Baseline still best overall** (77.30% vs 73.06%)  
 ✅ **More biologically plausible** - smooth, stochastic activation  
-✅ **Recommended as default** for olfactory-NER
+✅ **Recommended for olfactory variants** - better than ReLU
 
 ---
 

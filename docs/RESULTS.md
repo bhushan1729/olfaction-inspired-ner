@@ -11,12 +11,21 @@
 
 ### Model Performance Comparison
 
-| Model | Test F1 | Precision | Recall | Parameters |
-|-------|---------|-----------|--------|------------|
-| **Baseline (BiLSTM-CRF)** | **75.06%** | 79.37% | 71.19% | 4.74M |
-| **No Glomeruli** | **73.53%** | 78.13% | 69.44% | ~4.9M |
-| **Olfactory (Full)** | **72.56%** | 76.79% | 68.77% | ~5.1M |
-| **No Sparsity** | **72.56%** | 76.79% | 68.77% | ~5.1M |
+| Model | Test F1 | Precision | Recall |
+|-------|---------|-----------|--------|
+| Baseline BiLSTM-CRF | **77.30%** | 80.08% | 74.72% |
+| Olfactory (Full) | 72.56% | 76.79% | 68.77% |
+| Olfactory (No Sparse) | 72.56% | 76.79% | 68.77% |
+| Olfactory (No Glomeruli) | **73.53%** | 78.78% | 68.88% |
+
+### Per-Entity F1 Scores
+
+| Entity | Baseline | Full | No Sparse | No Glom |
+|--------|----------|------|-----------|----------|
+| LOC | 85.28% | 81.38% | 81.38% | 81.98% |
+| MISC | 67.84% | 62.27% | 62.27% | 63.46% |
+| ORG | 73.40% | 68.99% | 68.99% | 68.63% |
+| PER | 76.97% | 71.20% | 71.20% | 72.12% |
 
 **Key Finding**: Baseline BiLSTM-CRF outperformed all olfactory variants by 1.5-2.5 percentage points.
 
@@ -59,8 +68,9 @@
 ![Model Comparison](model_comparison.png)
 
 **Overall F1 Scores**:
+- **Baseline BiLSTM-CRF: 77.30%** (best overall)
 - No Glomeruli: 73.53% (best olfactory variant)
-- Olfactory Full & No Sparsity: 72.56% (tied)
+- Full Model: 72.56%
 - Missing baseline in this comparison chart
 
 **Per-Entity Performance** (all models similar):
