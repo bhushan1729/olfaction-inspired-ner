@@ -23,7 +23,7 @@ def download_ontonotes5(cache_dir='./data/ontonotes'):
     print("Downloading OntoNotes5 from Hugging Face...")
     
     dataset = load_dataset('tner/ontonotes5', cache_dir=cache_dir)
-    
+    tner/ontonotes5
     print(f"✓ OntoNotes5 downloaded")
     print(f"  Train: {len(dataset['train'])} samples")
     print(f"  Valid: {len(dataset['validation'])} samples")
