@@ -1,0 +1,138 @@
+# Hyperparameter Tuning Experiments Configuration
+# For comprehensive CoNLL-2003 tuning
+
+# Experiment 1: Baseline with ReLU (use existing olfactory_full from experiments.yaml)
+
+# Experiment 2: Baseline with GELU (use existing activation_gelu from tuning_experiments.yaml)
+
+# Experiment 3: More Receptors
+exp3_more_receptors:
+  model_type: "olfactory"
+  embed_dim: 300
+  num_receptors: 256  # 2x more
+  num_glomeruli: 64   # 2x more (maintain 4:1 ratio)
+  receptor_activation: "gelu"
+  lstm_hidden: 256
+  lstm_layers: 1
+  dropout: 0.5
+  use_receptors: true
+  use_glomeruli: true
+  batch_size: 32
+  learning_rate: 0.001
+  max_epochs: 50
+  early_stopping_patience: 5
+  lambda_sparse: 0.001
+  lambda_diverse: 0.01
+
+# Experiment 4: Only More Glomeruli (keep receptors at 128)
+exp4_more_gl
+
+omeruli:
+  model_type: "olfactory"
+  embed_dim: 300
+  num_receptors: 128
+  num_glomeruli: 64  # 2x more (change ratio to 2:1)
+  receptor_activation: "gelu"
+  lstm_hidden: 256
+  lstm_layers: 1
+  dropout: 0.5
+  use_receptors: true
+  use_glomeruli: true
+  batch_size: 32
+  learning_rate: 0.001
+  max_epochs: 50
+  early_stopping_patience: 5
+  lambda_sparse: 0.001
+  lambda_diverse: 0.01
+
+# Experiment 5: Larger LSTM
+exp5_larger_lstm:
+  model_type: "olfactory"
+  embed_dim: 300
+  num_receptors: 128
+  num_glomeruli: 32
+  receptor_activation: "gelu"
+  lstm_hidden: 512  # 2x larger
+  lstm_layers: 1
+  dropout: 0.5
+  use_receptors: true
+  use_glomeruli: true
+  batch_size: 32
+  learning_rate: 0.001
+  max_epochs: 50
+  early_stopping_patience: 5
+  lambda_sparse: 0.001
+  lambda_diverse: 0.01
+
+# Experiment 6: Lower Dropout
+exp6_lower_dropout:
+  model_type: "olfactory"
+  embed_dim: 300
+  num_receptors: 128
+  num_glomeruli: 32
+  receptor_activation: "gelu"
+  lstm_hidden: 256
+  lstm_layers: 1
+  dropout: 0.2  # Less regularization
+  use_receptors: true
+  use_glomeruli: true
+  batch_size: 32
+  learning_rate: 0.001
+  max_epochs: 50
+  early_stopping_patience: 5
+  lambda_sparse: 0.001
+  lambda_diverse: 0.01
+
+# Experiment 7: Larger Batch Size
+exp7_larger_batch:
+  model_type: "olfactory"
+  embed_dim: 300
+  num_receptors: 128
+  num_glomeruli: 32
+  receptor_activation: "gelu"
+  lstm_hidden: 256
+  lstm_layers: 1
+  dropout: 0.5
+  use_receptors: true
+  use_glomeruli: true
+  batch_size: 64  # 2x larger
+  learning_rate: 0.001
+  max_epochs: 50
+  early_stopping_patience: 5
+  lambda_sparse: 0.001
+  lambda_diverse: 0.01
+
+# Experiment 8: Strong Regularization
+exp8_strong_reg:
+  model_type: "olfactory"
+  embed_dim: 300
+  num_receptors: 128
+  num_glomeruli: 32
+  receptor_activation: "gelu"
+  lstm_hidden: 256
+  lstm_layers: 1
+  dropout: 0.5
+  use_receptors: true
+  use_glomeruli: true
+  batch_size: 32
+  learning_rate: 0.001
+  max_epochs: 50
+  early_stopping_patience: 5
+  lambda_sparse: 0.1   # 100x stronger
+  lambda_diverse: 0.1  # 10x stronger
+
+# Data and training configs (shared)
+data:
+  data_dir: "./data/raw"
+  glove_path: "./data/glove.6B.300d.txt"
+  min_word_freq: 2
+  use_pretrained_embeddings: true
+
+training:
+  device: "cuda"
+  seed: 42
+  num_workers: 2
+  gradient_clip: 5.0
+  log_interval: 100
+  save_dir: "./results"
+  tensorboard_dir: "./runs"
