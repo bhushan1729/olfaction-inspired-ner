@@ -1,0 +1,70 @@
+# OntoNotes5 Experiments Configuration
+
+# Baseline BiLSTM-CRF for OntoNotes5
+baseline_ontonotes:
+  model_type: "baseline"
+  embed_dim: 300
+  lstm_hidden: 256
+  lstm_layers: 1
+  dropout: 0.5
+  batch_size: 32
+  learning_rate: 0.001
+  max_epochs: 50
+  early_stopping_patience: 5
+  lambda_sparse: 0.0
+  lambda_diverse: 0.0
+
+# Olfactory model with GELU activation
+olfactory_gelu_ontonotes:
+  model_type: "olfactory"
+  embed_dim: 300
+  num_receptors: 128
+  num_glomeruli: 32
+  receptor_activation: "gelu"  # Biologically plausible
+  lstm_hidden: 256
+  lstm_layers: 1
+  dropout: 0.5
+  use_receptors: true
+  use_glomeruli: true
+  batch_size: 32
+  learning_rate: 0.001
+  max_epochs: 50
+  early_stopping_patience: 5
+  lambda_sparse: 0.001
+  lambda_diverse: 0.01
+
+# Olfactory without glomeruli (best variant from CoNLL-2003)
+olfactory_no_glomeruli_ontonotes:
+  model_type: "olfactory"
+  embed_dim: 300
+  num_receptors: 128
+  num_glomeruli: 32  # Ignored
+  receptor_activation: "gelu"
+  lstm_hidden: 256
+  lstm_layers: 1
+  dropout: 0.5
+  use_receptors: true
+  use_glomeruli: false  # Skip glomeruli
+  batch_size: 32
+  learning_rate: 0.001
+  max_epochs: 50
+  early_stopping_patience: 5
+  lambda_sparse: 0.001
+  lambda_diverse: 0.01
+
+# Data configuration
+data:
+  cache_dir: "./data/ontonotes"
+  glove_path: "./data/glove.6B.300d.txt"
+  min_word_freq: 2
+  use_pretrained_embeddings: true
+
+# Training configuration
+training:
+  device: "cuda"
+  seed: 42
+  num_workers: 2
+  gradient_clip: 5.0
+  log_interval: 100
+  save_dir: "./results/ontonotes"
+  tensorboard_dir: "./runs/ontonotes"
