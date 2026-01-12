@@ -1,0 +1,20 @@
+{
+  "experiment_name": "olfactory_gelu_conll2003",
+  "dataset": "CoNLL-2003",
+  "model_type": "olfactory_gelu",
+  "timestamp": "20260112_103101",
+  "config": {
+    "model_type": "olfactory",
+    "embed_dim": 300,
+    "num_receptors": 128,
+    "num_glomeruli": 32,
+    "receptor_activation": "gelu",
+    "lstm_hidden": 256,
+    "lstm_layers": 1,
+    "dropout": 0.5,
+    "batch_size": 32,
+    "learning_rate": 0.001,
+    "lambda_sparse": 0.001,
+    "lambda_diverse": 0.01
+  }
+}
