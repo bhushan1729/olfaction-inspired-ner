@@ -25,11 +25,12 @@ class ReceptorLayer(nn.Module):
     - Optional diversity regularization to prevent redundancy
     """
     
-    def __init__(self, input_dim: int, num_receptors: int):
+    def __init__(self, input_dim: int, num_receptors: int, activation: str = 'relu'):
         """
         Args:
             input_dim: Input embedding dimension
             num_receptors: Number of receptor units (e.g., 128-256)
+            activation: Activation function ('relu', 'gelu', 'swish', 'mish')
         """
         super().__init__()
         self.input_dim = input_dim
@@ -41,6 +42,20 @@ class ReceptorLayer(nn.Module):
         
         # Initialize with small weights for specialization
         nn.init.xavier_uniform_(self.W, gain=0.5)
+        
+        # Activation function selection
+        activation_map = {
+            'relu': nn.ReLU(),
+            'gelu': nn.GELU(),
+            'swish': nn.SiLU(),  # SiLU is PyTorch's name for Swish
+            'silu': nn.SiLU(),
+            'mish': nn.Mish(),
+        }
+        
+        if activation.lower() not in activation_map:
+            raise ValueError(f"Unknown activation: {activation}. Choose from {list(activation_map.keys())}")
+        
+        self.activation = activation_map[activation.lower()]
     
     def forward(self, x):
         """
@@ -54,8 +69,8 @@ class ReceptorLayer(nn.Module):
         # Using einsum for clarity: batch-seq-dim, receptor-dim -> batch-seq-receptor
         r = torch.einsum('bsd,rd->bsr', x, self.W) + self.b
         
-        # ReLU for sparse activations
-        r = F.relu(r)
+        # Apply activation function
+        r = self.activation(r)
         
         return r
     
@@ -143,16 +158,17 @@ class OlfactoryEncoder(nn.Module):
         -> Output features
     """
     
-    def __init__(self, input_dim: int, num_receptors: int, num_glomeruli: int):
+    def __init__(self, input_dim: int, num_receptors: int, num_glomeruli: int, activation: str = 'relu'):
         """
         Args:
             input_dim: Input embedding dimension
             num_receptors: Number of receptor units
             num_glomeruli: Number of glomerular units
+            activation: Activation function for receptors ('relu', 'gelu', 'swish', 'mish')
         """
         super().__init__()
         
-        self.receptors = ReceptorLayer(input_dim, num_receptors)
+        self.receptors = ReceptorLayer(input_dim, num_receptors, activation=activation)
         self.glomeruli = GlomerularLayer(num_receptors, num_glomeruli)
         
         self.output_dim = num_glomeruli

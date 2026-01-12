@@ -34,7 +34,8 @@ class OlfactoryNER(nn.Module):
                  dropout: float = 0.5,
                  pretrained_embeddings=None,
                  use_receptors: bool = True,
-                 use_glomeruli: bool = True):
+                 use_glomeruli: bool = True,
+                 receptor_activation: str = 'relu'):
         """
         Args:
             vocab_size: Size of vocabulary
@@ -48,6 +49,7 @@ class OlfactoryNER(nn.Module):
             pretrained_embeddings: Pre-trained embedding matrix (numpy array)
             use_receptors: If False, skip receptor layer (ablation)
             use_glomeruli: If False, skip glomerular layer (ablation)
+            receptor_activation: Activation function ('relu', 'gelu', 'swish', 'mish')
         """
         super().__init__()
         
@@ -64,7 +66,8 @@ class OlfactoryNER(nn.Module):
             self.olfactory_encoder = OlfactoryEncoder(
                 input_dim=embed_dim,
                 num_receptors=num_receptors,
-                num_glomeruli=num_glomeruli if use_glomeruli else num_receptors
+                num_glomeruli=num_glomeruli if use_glomeruli else num_receptors,
+                activation=receptor_activation
             )
             lstm_input_dim = num_glomeruli if use_glomeruli else num_receptors
         else:
@@ -193,7 +196,8 @@ def create_olfactory_ner(vocab_size, num_tags, config, pretrained_embeddings=Non
         dropout=config.get('dropout', 0.5),
         pretrained_embeddings=pretrained_embeddings,
         use_receptors=config.get('use_receptors', True),
-        use_glomeruli=config.get('use_glomeruli', True)
+        use_glomeruli=config.get('use_glomeruli', True),
+        receptor_activation=config.get('receptor_activation', 'relu')
     )
 
 
