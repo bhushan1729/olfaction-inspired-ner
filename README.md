@@ -33,6 +33,9 @@ python src/train.py --config config/experiments.yaml --experiment baseline
 # Train olfactory model
 python src/train.py --config config/experiments.yaml --experiment olfactory_full
 
+# Force CPU training
+python src/train.py --config config/experiments.yaml --experiment baseline --device cpu
+
 # Analyze results
 python -m src.analysis.visualize
 ```

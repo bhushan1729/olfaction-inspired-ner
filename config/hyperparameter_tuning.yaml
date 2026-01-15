@@ -19,15 +19,13 @@ exp3_more_receptors:
   use_glomeruli: true
   batch_size: 32
   learning_rate: 0.001
-  max_epochs: 50
+  max_epochs: 10
   early_stopping_patience: 5
   lambda_sparse: 0.001
   lambda_diverse: 0.01
 
 # Experiment 4: Only More Glomeruli (keep receptors at 128)
-exp4_more_gl
-
-omeruli:
+exp4_more_glomeruli:
   model_type: "olfactory"
   embed_dim: 300
   num_receptors: 128
@@ -40,7 +38,7 @@ omeruli:
   use_glomeruli: true
   batch_size: 32
   learning_rate: 0.001
-  max_epochs: 50
+  max_epochs: 10
   early_stopping_patience: 5
   lambda_sparse: 0.001
   lambda_diverse: 0.01
@@ -59,7 +57,7 @@ exp5_larger_lstm:
   use_glomeruli: true
   batch_size: 32
   learning_rate: 0.001
-  max_epochs: 50
+  max_epochs: 10
   early_stopping_patience: 5
   lambda_sparse: 0.001
   lambda_diverse: 0.01
@@ -78,7 +76,7 @@ exp6_lower_dropout:
   use_glomeruli: true
   batch_size: 32
   learning_rate: 0.001
-  max_epochs: 50
+  max_epochs: 10
   early_stopping_patience: 5
   lambda_sparse: 0.001
   lambda_diverse: 0.01
@@ -97,7 +95,7 @@ exp7_larger_batch:
   use_glomeruli: true
   batch_size: 64  # 2x larger
   learning_rate: 0.001
-  max_epochs: 50
+  max_epochs: 10
   early_stopping_patience: 5
   lambda_sparse: 0.001
   lambda_diverse: 0.01
@@ -116,7 +114,7 @@ exp8_strong_reg:
   use_glomeruli: true
   batch_size: 32
   learning_rate: 0.001
-  max_epochs: 50
+  max_epochs: 10
   early_stopping_patience: 5
   lambda_sparse: 0.1   # 100x stronger
   lambda_diverse: 0.1  # 10x stronger

@@ -112,7 +112,11 @@ def train(config, experiment_name, save_dir):
     set_seed(config.get('seed', 42))
     
     # Device
-    device = torch.device('cuda' if torch.cuda.is_available() and config.get('device', 'cuda') == 'cuda' else 'cpu')
+    if config.get('device') == 'cpu':
+        device = torch.device('cpu')
+    else:
+        device = torch.device('cuda' if torch.cuda.is_available() and config.get('device', 'cuda') == 'cuda' else 'cpu')
+    
     print(f"Using device: {device}")
     
     # Prepare data
@@ -297,11 +301,17 @@ if __name__ == '__main__':
                         help='Experiment name (e.g., baseline, olfactory_full)')
     parser.add_argument('--save_dir', type=str, default=None,
                         help='Directory to save results (default: results/<experiment>)')
+    parser.add_argument('--device', type=str, default=None,
+                        help='Device to use (cuda or cpu)')
     
     args = parser.parse_args()
     
     # Load config
     config = load_config(args.config, args.experiment)
+    
+    # Override device if provided
+    if args.device:
+        config['device'] = args.device
     
     # Set save directory
     save_dir = args.save_dir if args.save_dir else os.path.join('results', args.experiment)
