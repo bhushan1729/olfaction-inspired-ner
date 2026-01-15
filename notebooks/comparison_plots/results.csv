@@ -1,3 +1,0 @@
-Experiment,F1 Score,Precision,Recall
-Baseline (ReLU),0.7241,0.7623,0.6894
-Baseline (GELU),0.7017,0.7380,0.6687

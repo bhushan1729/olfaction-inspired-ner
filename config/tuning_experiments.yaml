@@ -14,7 +14,7 @@ activation_gelu:
   use_glomeruli: true
   batch_size: 32
   learning_rate: 0.001
-  max_epochs: 50
+  max_epochs: 20
   early_stopping_patience: 5
   lambda_sparse: 0.001
   lambda_diverse: 0.01
@@ -33,7 +33,7 @@ activation_swish:
   use_glomeruli: true
   batch_size: 32
   learning_rate: 0.001
-  max_epochs: 50
+  max_epochs: 20
   early_stopping_patience: 5
   lambda_sparse: 0.001
   lambda_diverse: 0.01
@@ -52,7 +52,7 @@ activation_mish:
   use_glomeruli: true
   batch_size: 32
   learning_rate: 0.001
-  max_epochs: 50
+  max_epochs: 20
   early_stopping_patience: 5
   lambda_sparse: 0.001
   lambda_diverse: 0.01
@@ -63,7 +63,7 @@ more_receptors:
   embed_dim: 300
   num_receptors: 256  # Doubled
   num_glomeruli: 64   # Doubled to maintain 4:1 ratio
-  receptor_activation: "relu"
+  receptor_activation: "gelu"
   lstm_hidden: 256
   lstm_layers: 1
   dropout: 0.5
@@ -71,7 +71,7 @@ more_receptors:
   use_glomeruli: true
   batch_size: 32
   learning_rate: 0.001
-  max_epochs: 50
+  max_epochs: 20
   early_stopping_patience: 5
   lambda_sparse: 0.001
   lambda_diverse: 0.01
@@ -82,7 +82,7 @@ fewer_receptors:
   embed_dim: 300
   num_receptors: 64   # Halved
   num_glomeruli: 16   # Halved to maintain 4:1 ratio
-  receptor_activation: "relu"
+  receptor_activation: "gelu"
   lstm_hidden: 256
   lstm_layers: 1
   dropout: 0.5
@@ -90,7 +90,26 @@ fewer_receptors:
   use_glomeruli: true
   batch_size: 32
   learning_rate: 0.001
-  max_epochs: 50
+  max_epochs: 20
+  early_stopping_patience: 5
+  lambda_sparse: 0.001
+  lambda_diverse: 0.01
+
+# Experiment 5b: More Glomeruli (128 receptors -> 64 glomeruli, 2:1 ratio)
+more_glomeruli:
+  model_type: "olfactory"
+  embed_dim: 300
+  num_receptors: 128
+  num_glomeruli: 64   # Doubled from 32 (2:1 ratio instead of 4:1)
+  receptor_activation: "gelu"
+  lstm_hidden: 256
+  lstm_layers: 1
+  dropout: 0.5
+  use_receptors: true
+  use_glomeruli: true
+  batch_size: 32
+  learning_rate: 0.001
+  max_epochs: 20
   early_stopping_patience: 5
   lambda_sparse: 0.001
   lambda_diverse: 0.01
@@ -101,7 +120,7 @@ strong_diversity:
   embed_dim: 300
   num_receptors: 128
   num_glomeruli: 32
-  receptor_activation: "relu"
+  receptor_activation: "gelu"
   lstm_hidden: 256
   lstm_layers: 1
   dropout: 0.5
@@ -109,7 +128,7 @@ strong_diversity:
   use_glomeruli: true
   batch_size: 32
   learning_rate: 0.001
-  max_epochs: 50
+  max_epochs: 20
   early_stopping_patience: 5
   lambda_sparse: 0.001
   lambda_diverse: 0.05  # 5x stronger than before
@@ -120,7 +139,7 @@ very_strong_diversity:
   embed_dim: 300
   num_receptors: 128
   num_glomeruli: 32
-  receptor_activation: "relu"
+  receptor_activation: "gelu"
   lstm_hidden: 256
   lstm_layers: 1
   dropout: 0.5
@@ -128,7 +147,7 @@ very_strong_diversity:
   use_glomeruli: true
   batch_size: 32
   learning_rate: 0.001
-  max_epochs: 50
+  max_epochs: 20
   early_stopping_patience: 5
   lambda_sparse: 0.001
   lambda_diverse: 0.1  # 10x stronger
@@ -147,7 +166,7 @@ gelu_more_receptors:
   use_glomeruli: true
   batch_size: 32
   learning_rate: 0.001
-  max_epochs: 50
+  max_epochs: 20
   early_stopping_patience: 5
   lambda_sparse: 0.001
   lambda_diverse: 0.05  # Strong diversity
@@ -166,7 +185,7 @@ minimal_gelu:
   use_glomeruli: false  # Skip glomeruli (we saw this works best!)
   batch_size: 32
   learning_rate: 0.001
-  max_epochs: 50
+  max_epochs: 20
   early_stopping_patience: 5
   lambda_sparse: 0.001
   lambda_diverse: 0.05

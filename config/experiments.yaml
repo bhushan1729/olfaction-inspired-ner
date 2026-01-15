@@ -9,7 +9,7 @@ baseline:
   dropout: 0.5
   batch_size: 32
   learning_rate: 0.001
-  max_epochs: 10
+  max_epochs: 20
   early_stopping_patience: 5
   
   # Regularization
@@ -29,7 +29,7 @@ olfactory_full:
   use_glomeruli: true
   batch_size: 32
   learning_rate: 0.001
-  max_epochs: 50
+  max_epochs: 20
   early_stopping_patience: 5
   
   # Regularization weights
@@ -49,7 +49,7 @@ olfactory_no_sparse:
   use_glomeruli: true
   batch_size: 32
   learning_rate: 0.001
-  max_epochs: 50
+  max_epochs: 20
   early_stopping_patience: 5
   
   lambda_sparse: 0.0  # Disabled
@@ -68,7 +68,7 @@ olfactory_no_glomeruli:
   use_glomeruli: false  # Skip glomeruli
   batch_size: 32
   learning_rate: 0.001
-  max_epochs: 50
+  max_epochs: 20
   early_stopping_patience: 5
   
   lambda_sparse: 0.001
