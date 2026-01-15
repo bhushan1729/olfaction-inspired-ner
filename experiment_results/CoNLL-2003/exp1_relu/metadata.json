@@ -1,0 +1,13 @@
+{
+  "name": "exp1_relu",
+  "config": {
+    "activation": "relu",
+    "receptors": 128,
+    "glomeruli": 32,
+    "lstm": 256,
+    "dropout": 0.5,
+    "batch": 32,
+    "sparse": 0.001,
+    "diverse": 0.01
+  }
+}
