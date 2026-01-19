@@ -1,0 +1,15 @@
+✓ Loaded results for: activation_gelu
+✓ Loaded results for: activation_swish
+✓ Loaded results for: activation_mish
+✓ Loaded results for: more_receptors
+✓ Loaded results for: more_glomeruli
+✓ Loaded results for: fewer_receptors
+✓ Loaded results for: strong_diversity
+✓ Loaded results for: very_strong_diversity
+✓ Loaded results for: gelu_more_receptors
+✓ Loaded results for: minimal_gelu
+✓ Loaded results for: baseline
+✓ Loaded results for: olfactory_full
+✓ Loaded results for: olfactory_no_glomeruli
+
+✓ Loaded results for 13 experiments

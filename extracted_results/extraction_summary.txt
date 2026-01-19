@@ -1,0 +1,16 @@
+============================================================
+COMPREHENSIVE EXPERIMENTS - EXTRACTION SUMMARY
+============================================================
+
+Source Notebook: notebooks/comprehensive_experiments.ipynb
+Total Cells: 80
+
+Extracted Results:
+  - Images (PNG): 28
+  - Text Outputs: 62
+  - HTML Tables: 0
+
+Output Directories:
+  - Images: extracted_results\images
+  - Text Results: extracted_results\text_results
+============================================================

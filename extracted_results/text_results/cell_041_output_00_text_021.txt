@@ -1,0 +1,320 @@
+2026-01-15 13:10:16.770180: E external/local_xla/xla/stream_executor/cuda/cuda_fft.cc:467] Unable to register cuFFT factory: Attempting to register factory for plugin cuFFT when one has already been registered
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+E0000 00:00:1768482616.789504   33645 cuda_dnn.cc:8579] Unable to register cuDNN factory: Attempting to register factory for plugin cuDNN when one has already been registered
+E0000 00:00:1768482616.795370   33645 cuda_blas.cc:1407] Unable to register cuBLAS factory: Attempting to register factory for plugin cuBLAS when one has already been registered
+W0000 00:00:1768482616.810390   33645 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.
+W0000 00:00:1768482616.810415   33645 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.
+W0000 00:00:1768482616.810419   33645 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.
+W0000 00:00:1768482616.810424   33645 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.
+2026-01-15 13:10:16.814763: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+To enable the following instructions: AVX2 AVX512F FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
+Using device: cuda
+
+==================================================
+Loading data...
+==================================================
+Loading training data...
+Loading validation data...
+Loading test data...
+Train: 14041 sentences
+Valid: 3250 sentences
+Test: 3453 sentences
+
+Building vocabularies...
+Vocabulary size: 11984
+Number of labels: 8
+Labels: ['B-LOC', 'B-MISC', 'B-ORG', 'I-LOC', 'I-MISC', 'I-ORG', 'I-PER', 'O']
+
+Loading GloVe embeddings from ./data/glove.6B.300d.txt...
+Loading GloVe embeddings from ./data/glove.6B.300d.txt...
+Found embeddings for 6544/11984 words (54.6%)
+
+==================================================
+Creating baseline model...
+==================================================
+Total parameters: 4,742,168
+Trainable parameters: 4,742,168
+
+==================================================
+Starting training...
+==================================================
+
+==================================================
+Epoch 1/20
+==================================================
+Training: 100% 439/439 [00:21<00:00, 19.96it/s, loss=1.4222, task=1.4222] 
+
+Evaluating on validation set...
+Evaluating: 100% 102/102 [00:01<00:00, 51.01it/s]
+
+Train Loss: 4.4558
+Valid F1: 0.7439
+Valid Precision: 0.7627
+Valid Recall: 0.7260
+
+✓ Saved new best model (F1: 0.7439)
+
+==================================================
+Epoch 2/20
+==================================================
+Training: 100% 439/439 [00:21<00:00, 20.83it/s, loss=0.9428, task=0.9428]
+
+Evaluating on validation set...
+Evaluating: 100% 102/102 [00:01<00:00, 52.66it/s]
+
+Train Loss: 1.2757
+Valid F1: 0.8239
+Valid Precision: 0.8580
+Valid Recall: 0.7923
+
+✓ Saved new best model (F1: 0.8239)
+
+==================================================
+Epoch 3/20
+==================================================
+Training: 100% 439/439 [00:20<00:00, 21.17it/s, loss=0.4746, task=0.4746]
+
+Evaluating on validation set...
+Evaluating: 100% 102/102 [00:01<00:00, 53.67it/s]
+
+Train Loss: 0.7424
+Valid F1: 0.8341
+Valid Precision: 0.8697
+Valid Recall: 0.8012
+
+✓ Saved new best model (F1: 0.8341)
+
+==================================================
+Epoch 4/20
+==================================================
+Training: 100% 439/439 [00:20<00:00, 21.52it/s, loss=0.4915, task=0.4915]
+
+Evaluating on validation set...
+Evaluating: 100% 102/102 [00:01<00:00, 53.45it/s]
+
+Train Loss: 0.5309
+Valid F1: 0.8414
+Valid Precision: 0.8758
+Valid Recall: 0.8095
+
+✓ Saved new best model (F1: 0.8414)
+
+==================================================
+Epoch 5/20
+==================================================
+Training: 100% 439/439 [00:20<00:00, 21.37it/s, loss=0.4342, task=0.4342]
+
+Evaluating on validation set...
+Evaluating: 100% 102/102 [00:01<00:00, 53.59it/s]
+
+Train Loss: 0.3949
+Valid F1: 0.8451
+Valid Precision: 0.8647
+Valid Recall: 0.8263
+
+✓ Saved new best model (F1: 0.8451)
+
+==================================================
+Epoch 6/20
+==================================================
+Training: 100% 439/439 [00:20<00:00, 21.17it/s, loss=0.3807, task=0.3807]
+
+Evaluating on validation set...
+Evaluating: 100% 102/102 [00:01<00:00, 53.06it/s]
+
+Train Loss: 0.2909
+Valid F1: 0.8432
+Valid Precision: 0.8804
+Valid Recall: 0.8090
+
+No improvement (1/5)
+
+==================================================
+Epoch 7/20
+==================================================
+Training: 100% 439/439 [00:21<00:00, 20.76it/s, loss=0.0278, task=0.0278]
+
+Evaluating on validation set...
+Evaluating: 100% 102/102 [00:01<00:00, 52.48it/s]
+
+Train Loss: 0.2184
+Valid F1: 0.8536
+Valid Precision: 0.8773
+Valid Recall: 0.8312
+
+✓ Saved new best model (F1: 0.8536)
+
+==================================================
+Epoch 8/20
+==================================================
+Training: 100% 439/439 [00:21<00:00, 20.85it/s, loss=0.5214, task=0.5214]
+
+Evaluating on validation set...
+Evaluating: 100% 102/102 [00:02<00:00, 44.60it/s]
+
+Train Loss: 0.1891
+Valid F1: 0.8469
+Valid Precision: 0.8575
+Valid Recall: 0.8366
+
+No improvement (1/5)
+
+==================================================
+Epoch 9/20
+==================================================
+Training: 100% 439/439 [00:21<00:00, 20.57it/s, loss=0.1199, task=0.1199]
+
+Evaluating on validation set...
+Evaluating: 100% 102/102 [00:01<00:00, 52.30it/s]
+
+Train Loss: 0.1416
+Valid F1: 0.8526
+Valid Precision: 0.8849
+Valid Recall: 0.8226
+
+No improvement (2/5)
+
+==================================================
+Epoch 10/20
+==================================================
+Training: 100% 439/439 [00:20<00:00, 21.21it/s, loss=0.1378, task=0.1378]
+
+Evaluating on validation set...
+Evaluating: 100% 102/102 [00:01<00:00, 54.26it/s]
+
+Train Loss: 0.1189
+Valid F1: 0.8535
+Valid Precision: 0.8730
+Valid Recall: 0.8349
+
+No improvement (3/5)
+
+==================================================
+Epoch 11/20
+==================================================
+Training: 100% 439/439 [00:20<00:00, 21.58it/s, loss=0.1289, task=0.1289]
+
+Evaluating on validation set...
+Evaluating: 100% 102/102 [00:01<00:00, 54.35it/s]
+
+Train Loss: 0.0791
+Valid F1: 0.8554
+Valid Precision: 0.8796
+Valid Recall: 0.8325
+
+✓ Saved new best model (F1: 0.8554)
+
+==================================================
+Epoch 12/20
+==================================================
+Training: 100% 439/439 [00:20<00:00, 21.62it/s, loss=0.0676, task=0.0676]
+
+Evaluating on validation set...
+Evaluating: 100% 102/102 [00:01<00:00, 51.26it/s]
+
+Train Loss: 0.0547
+Valid F1: 0.8576
+Valid Precision: 0.8802
+Valid Recall: 0.8361
+
+✓ Saved new best model (F1: 0.8576)
+
+==================================================
+Epoch 13/20
+==================================================
+Training: 100% 439/439 [00:20<00:00, 21.68it/s, loss=0.0125, task=0.0125]
+
+Evaluating on validation set...
+Evaluating: 100% 102/102 [00:01<00:00, 52.34it/s]
+
+Train Loss: 0.0491
+Valid F1: 0.8473
+Valid Precision: 0.8735
+Valid Recall: 0.8226
+
+No improvement (1/5)
+
+==================================================
+Epoch 14/20
+==================================================
+Training: 100% 439/439 [00:19<00:00, 22.13it/s, loss=0.2529, task=0.2529]
+
+Evaluating on validation set...
+Evaluating: 100% 102/102 [00:02<00:00, 45.67it/s]
+
+Train Loss: 0.0453
+Valid F1: 0.8532
+Valid Precision: 0.8798
+Valid Recall: 0.8282
+
+No improvement (2/5)
+
+==================================================
+Epoch 15/20
+==================================================
+Training: 100% 439/439 [00:19<00:00, 22.19it/s, loss=0.1042, task=0.1042]
+
+Evaluating on validation set...
+Evaluating: 100% 102/102 [00:02<00:00, 41.77it/s]
+
+Train Loss: 0.0458
+Valid F1: 0.8519
+Valid Precision: 0.8660
+Valid Recall: 0.8383
+
+No improvement (3/5)
+
+==================================================
+Epoch 16/20
+==================================================
+Training: 100% 439/439 [00:19<00:00, 22.23it/s, loss=0.0093, task=0.0093]
+
+Evaluating on validation set...
+Evaluating: 100% 102/102 [00:02<00:00, 43.73it/s]
+
+Train Loss: 0.0367
+Valid F1: 0.8535
+Valid Precision: 0.8784
+Valid Recall: 0.8300
+
+No improvement (4/5)
+
+==================================================
+Epoch 17/20
+==================================================
+Training: 100% 439/439 [00:19<00:00, 22.38it/s, loss=0.0115, task=0.0115]
+
+Evaluating on validation set...
+Evaluating: 100% 102/102 [00:02<00:00, 51.00it/s]
+
+Train Loss: 0.0317
+Valid F1: 0.8509
+Valid Precision: 0.8742
+Valid Recall: 0.8288
+
+No improvement (5/5)
+
+Early stopping triggered after 17 epochs
+
+==================================================
+Final evaluation on test set...
+==================================================
+Evaluating: 100% 108/108 [00:01<00:00, 55.03it/s]
+
+Test F1: 0.7730
+Test Precision: 0.8008
+Test Recall: 0.7472
+
+Per-entity F1 scores:
+  LOC: 0.8528
+  MISC: 0.6784
+  ORG: 0.7340
+  PER: 0.7697
+  micro avg: 0.7730
+  macro avg: 0.7587
+  weighted avg: 0.7724
+
+✓ Training complete! Results saved to results/baseline
+  ✓ Saved best_model.pt to Drive
+  ✓ Saved results.json to Drive
+✓ Experiment 'baseline' saved to Google Drive!
