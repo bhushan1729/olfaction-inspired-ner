@@ -1,0 +1,194 @@
+# Marathi NER Tuning Experiments Configuration
+# Using ai4bharat/naamapadam dataset
+
+# Experiment 1: GELU Activation
+activation_gelu:
+  model_type: "olfactory"
+  embedding_dim: 300
+  num_receptors: 128
+  num_glomeruli: 32
+  activation: "gelu"
+  dropout: 0.2
+  batch_size: 32
+  learning_rate: 0.001
+  num_epochs: 20
+  patience: 5
+  data_dir: "./data/naamapadam"
+  glove_path: "./data/glove.6B.300d.txt"
+  min_freq: 2
+
+# Experiment 2: Swish Activation
+activation_swish:
+  model_type: "olfactory"
+  embedding_dim: 300
+  num_receptors: 128
+  num_glomeruli: 32
+  activation: "swish"
+  dropout: 0.2
+  batch_size: 32
+  learning_rate: 0.001
+  num_epochs: 20
+  patience: 5
+  data_dir: "./data/naamapadam"
+  glove_path: "./data/glove.6B.300d.txt"
+  min_freq: 2
+
+# Experiment 3: Mish Activation  
+activation_mish:
+  model_type: "olfactory"
+  embedding_dim: 300
+  num_receptors: 128
+  num_glomeruli: 32
+  activation: "mish"
+  dropout: 0.2
+  batch_size: 32
+  learning_rate: 0.001
+  num_epochs: 20
+  patience: 5
+  data_dir: "./data/naamapadam"
+  glove_path: "./data/glove.6B.300d.txt"
+  min_freq: 2
+
+# Experiment 4: More Receptors (256)
+receptors_256:
+  model_type: "olfactory"
+  embedding_dim: 300
+  num_receptors: 256
+  num_glomeruli: 64
+  activation: "gelu"
+  dropout: 0.2
+  batch_size: 32
+  learning_rate: 0.001
+  num_epochs: 20
+  patience: 5
+  data_dir: "./data/naamapadam"
+  glove_path: "./data/glove.6B.300d.txt"
+  min_freq: 2
+
+# Experiment 5: Fewer Receptors (64)
+receptors_64:
+  model_type: "olfactory"
+  embedding_dim: 300
+  num_receptors: 64
+  num_glomeruli: 16
+  activation: "gelu"
+  dropout: 0.2
+  batch_size: 32
+  learning_rate: 0.001
+  num_epochs: 20
+  patience: 5
+  data_dir: "./data/naamapadam"
+  glove_path: "./data/glove.6B.300d.txt"
+  min_freq: 2
+
+# Experiment 6: More Glomeruli (64)
+glomeruli_64:
+  model_type: "olfactory"
+  embedding_dim: 300
+  num_receptors: 128
+  num_glomeruli: 64
+  activation: "gelu"
+  dropout: 0.2
+  batch_size: 32
+  learning_rate: 0.001
+  num_epochs: 20
+  patience: 5
+  data_dir: "./data/naamapadam"
+  glove_path: "./data/glove.6B.300d.txt"
+  min_freq: 2
+
+# Experiment 7: Fewer Glomeruli (16)
+glomeruli_16:
+  model_type: "olfactory"
+  embedding_dim: 300
+  num_receptors: 128
+  num_glomeruli: 16
+  activation: "gelu"
+  dropout: 0.2
+  batch_size: 32
+  learning_rate: 0.001
+  num_epochs: 20
+  patience: 5
+  data_dir: "./data/naamapadam"
+  glove_path: "./data/glove.6B.300d.txt"
+  min_freq: 2
+
+# Experiment 8: Higher Dropout (0.3)
+dropout_03:
+  model_type: "olfactory"
+  embedding_dim: 300
+  num_receptors: 128
+  num_glomeruli: 32
+  activation: "gelu"
+  dropout: 0.3
+  batch_size: 32
+  learning_rate: 0.001
+  num_epochs: 20
+  patience: 5
+  data_dir: "./data/naamapadam"
+  glove_path: "./data/glove.6B.300d.txt"
+  min_freq: 2
+
+# Experiment 9: Lower Dropout (0.1)
+dropout_01:
+  model_type: "olfactory"
+  embedding_dim: 300
+  num_receptors: 128
+  num_glomeruli: 32
+  activation: "gelu"
+  dropout: 0.1
+  batch_size: 32
+  learning_rate: 0.001
+  num_epochs: 20
+  patience: 5
+  data_dir: "./data/naamapadam"
+  glove_path: "./data/glove.6B.300d.txt"
+  min_freq: 2
+
+# Experiment 10: Higher Learning Rate (0.005)
+learning_rate_0005:
+  model_type: "olfactory"
+  embedding_dim: 300
+  num_receptors: 128
+  num_glomeruli: 32
+  activation: "gelu"
+  dropout: 0.2
+  batch_size: 32
+  learning_rate: 0.005
+  num_epochs: 20
+  patience: 5
+  data_dir: "./data/naamapadam"
+  glove_path: "./data/glove.6B.300d.txt"
+  min_freq: 2
+
+#  Experiment 11: Lower Learning Rate (0.0005)
+learning_rate_00005:
+  model_type: "olfactory"
+  embedding_dim: 300
+  num_receptors: 128
+  num_glomeruli: 32
+  activation: "gelu"
+  dropout: 0.2
+  batch_size: 32
+  learning_rate: 0.0005
+  num_epochs: 20
+  patience: 5
+  data_dir: "./data/naamapadam"
+  glove_path: "./data/glove.6B.300d.txt"
+  min_freq: 2
+
+# Experiment 12: Larger Batch Size (64)
+batch_size_64:
+  model_type: "olfactory"
+  embedding_dim: 300
+  num_receptors: 128
+  num_glomeruli: 32
+  activation: "gelu"
+  dropout: 0.2
+  batch_size: 64
+  learning_rate: 0.001
+  num_epochs: 20
+  patience: 5
+  data_dir: "./data/naamapadam"
+  glove_path: "./data/glove.6B.300d.txt"
+  min_freq: 2
