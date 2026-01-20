@@ -16,7 +16,7 @@ activation_gelu:
   data_dir: "./data/wikiann"
   glove_path: "./data/glove.6B.300d.txt"
   min_freq: 2
-  use_pretrained_embeddings: false  # WikiANN is Marathi, GloVe is English
+  use_pretrained_embeddings: false
   use_receptors: true
   use_glomeruli: true
   lambda_sparse: 0.001
@@ -48,7 +48,7 @@ more_glomeruli:
   model_type: "olfactory"
   embedding_dim: 300
   num_receptors: 128
-  num_glomeruli: 64  # Doubled from 32
+  num_glomeruli: 64
   activation: "gelu"
   dropout: 0.2
   batch_size: 32
@@ -64,12 +64,12 @@ more_glomeruli:
   lambda_sparse: 0.001
   lambda_diverse: 0.01
 
-# Experiment 4: GELU + More Receptors (256)
-gelu_more_receptors:
+# Experiment 4: More Receptors (256) - Fixed Indentation
+more_receptors:
   model_type: "olfactory"
   embedding_dim: 300
-  num_receptors: 256  # Doubled
-  num_glomeruli: 64   # Doubled to maintain ratio
+  num_receptors: 256
+  num_glomeruli: 64
   activation: "gelu"
   dropout: 0.2
   batch_size: 32
@@ -83,9 +83,30 @@ gelu_more_receptors:
   use_receptors: true
   use_glomeruli: true
   lambda_sparse: 0.001
-  lambda_diverse: 0.05  # Strong diversity
+  lambda_diverse: 0.01
 
-# Experiment 5: Baseline BiLSTM-CRF (no olfactory components)
+# Experiment 5: GELU + More Receptors (256)
+gelu_more_receptors:
+  model_type: "olfactory"
+  embedding_dim: 300
+  num_receptors: 256
+  num_glomeruli: 64
+  activation: "gelu"
+  dropout: 0.2
+  batch_size: 32
+  learning_rate: 0.001
+  num_epochs: 20
+  patience: 5
+  data_dir: "./data/wikiann"
+  glove_path: "./data/glove.6B.300d.txt"
+  min_freq: 2
+  use_pretrained_embeddings: false
+  use_receptors: true
+  use_glomeruli: true
+  lambda_sparse: 0.001
+  lambda_diverse: 0.05
+
+# Experiment 6: Baseline BiLSTM-CRF
 baseline:
   model_type: "baseline"
   embedding_dim: 300
