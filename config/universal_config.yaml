@@ -1,0 +1,99 @@
+# Universal NER Configuration
+# Defines datasets and experiment hyperparameters
+
+datasets:
+  # English Baseline (CoNLL-2003)
+  conll_en:
+    dataset: "conll2003"
+    language: null
+    glove_path: "./data/glove.6B.300d.txt"
+    use_pretrained_embeddings: true
+
+  # Marathi (WikiANN)
+  wikiann_mr:
+    dataset: "wikiann"
+    language: "mr"
+    glove_path: null  # No Marathi GloVe
+    use_pretrained_embeddings: false
+
+  # Yoruba (MasakhaNER) - Example for future expansion
+  masakhaner_yo:
+    dataset: "masakhaner"
+    language: "yor"
+    glove_path: null
+    use_pretrained_embeddings: false
+
+# Reusable anchors for common settings
+common_settings: &common
+  embedding_dim: 300
+  dropout: 0.2
+  batch_size: 32
+  learning_rate: 0.001
+  num_epochs: 20
+  patience: 5
+  min_freq: 2
+  lambda_sparse: 0.001   # Default sparsity
+  lambda_diverse: 0.01   # Default diversity
+  use_receptors: true    # Default to true for olfactory
+  use_glomeruli: true    # Default to true for olfactory
+  use_crf: true          # Default to true
+
+experiments:
+  # 1. Baseline BiLSTM-CRF (No Olfactory Layers)
+  baseline:
+    <<: *common
+    model_type: "baseline"
+    lstm_hidden: 256
+    lstm_layers: 1
+    use_receptors: false
+    use_glomeruli: false
+
+  # 2. Standard Olfactory Model (GELU)
+  activation_gelu:
+    <<: *common
+    model_type: "olfactory"
+    num_receptors: 128
+    num_glomeruli: 32
+    activation: "gelu"
+
+  # 3. Mish Activation
+  activation_mish:
+    <<: *common
+    model_type: "olfactory"
+    num_receptors: 128
+    num_glomeruli: 32
+    activation: "mish"
+
+  # 4. More Glomeruli
+  more_glomeruli:
+    <<: *common
+    model_type: "olfactory"
+    num_receptors: 128
+    num_glomeruli: 64
+    activation: "gelu"
+
+  # 5. More Receptors
+  more_receptors:
+    <<: *common
+    model_type: "olfactory"
+    num_receptors: 256
+    num_glomeruli: 64
+    activation: "gelu"
+
+  # 6. Large Olfactory Model
+  gelu_more_receptors:
+    <<: *common
+    model_type: "olfactory"
+    num_receptors: 256
+    num_glomeruli: 64
+    activation: "gelu"
+    lambda_diverse: 0.05  # Increased diversity for larger model
+
+  # 7. No CRF Ablation
+  olfactory_no_crf:
+    <<: *common
+    model_type: "olfactory"
+    num_receptors: 128
+    num_glomeruli: 32
+    activation: "gelu"
+    use_crf: false        # Disable CRF

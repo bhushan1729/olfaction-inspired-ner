@@ -35,7 +35,8 @@ class OlfactoryNER(nn.Module):
                  pretrained_embeddings=None,
                  use_receptors: bool = True,
                  use_glomeruli: bool = True,
-                 receptor_activation: str = 'relu'):
+                 receptor_activation: str = 'relu',
+                 use_crf: bool = True):
         """
         Args:
             vocab_size: Size of vocabulary
@@ -50,11 +51,14 @@ class OlfactoryNER(nn.Module):
             use_receptors: If False, skip receptor layer (ablation)
             use_glomeruli: If False, skip glomerular layer (ablation)
             receptor_activation: Activation function ('relu', 'gelu', 'swish', 'mish')
+            use_crf: If False, skip CRF layer and use CrossEntropyLoss (ablation)
         """
         super().__init__()
         
         self.use_receptors = use_receptors
         self.use_glomeruli = use_glomeruli
+        self.use_crf_layer = use_crf
+        self.num_tags = num_tags
         
         # Embedding layer
         self.embedding = nn.Embedding(vocab_size, embed_dim, padding_idx=0)
@@ -89,8 +93,11 @@ class OlfactoryNER(nn.Module):
         # Linear projection to tag space
         self.hidden2tag = nn.Linear(lstm_hidden * 2, num_tags)
         
-        # CRF layer
-        self.crf = CRF(num_tags, batch_first=True)
+        # CRF layer or CrossEntropyLoss
+        if self.use_crf_layer:
+            self.crf = CRF(num_tags, batch_first=True)
+        else:
+            self.loss_fct = nn.CrossEntropyLoss(ignore_index=-100)
     
     def forward(self, sentences, tags=None, lengths=None):
         """
@@ -140,10 +147,22 @@ class OlfactoryNER(nn.Module):
         
         # Training: compute loss
         if tags is not None:
-            return self.crf(emissions, tags, mask)
+            if self.use_crf_layer:
+                return self.crf(emissions, tags, mask)
+            else:
+                # Use CrossEntropyLoss
+                # Only calculate loss for masked positions
+                active_loss = mask.view(-1)
+                active_logits = emissions.view(-1, self.num_tags)[active_loss]
+                active_labels = tags.view(-1)[active_loss]
+                return self.loss_fct(active_logits, active_labels)
         
         # Inference: decode
-        return self.crf.decode(emissions, mask)
+        if self.use_crf_layer:
+            return self.crf.decode(emissions, mask)
+        else:
+            # Simple argmax decoding
+            return torch.argmax(emissions, dim=-1)
     
     def get_diversity_loss(self):
         """Get receptor diversity regularization loss."""
@@ -197,7 +216,8 @@ def create_olfactory_ner(vocab_size, num_tags, config, pretrained_embeddings=Non
         pretrained_embeddings=pretrained_embeddings,
         use_receptors=config.get('use_receptors', True),
         use_glomeruli=config.get('use_glomeruli', True),
-        receptor_activation=config.get('receptor_activation', 'relu')
+        receptor_activation=config.get('receptor_activation', 'relu'),
+        use_crf=config.get('use_crf', True)
     )
 
 

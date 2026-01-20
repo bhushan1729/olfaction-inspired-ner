@@ -12,7 +12,7 @@ from collections import defaultdict
 import os
 
 
-def analyze_receptor_activations(model, data_loader, vocab_info, device, save_dir='./analysis'):
+def analyze_receptor_activations(model, data_loader, vocab_info, device, save_dir='./analysis', experiment_name=None):
     """
     Analyze receptor activation patterns.
     
@@ -94,7 +94,12 @@ def analyze_receptor_activations(model, data_loader, vocab_info, device, save_di
                 ax=ax)
     ax.set_xlabel('Receptor Index')
     ax.set_ylabel('Entity Type')
-    ax.set_title('Mean Receptor Activations by Entity Type')
+    
+    title = 'Mean Receptor Activations by Entity Type'
+    if experiment_name:
+        title += f'\n({experiment_name})'
+    ax.set_title(title)
+    
     plt.tight_layout()
     plt.savefig(os.path.join(save_dir, 'receptor_heatmap.png'), dpi=300, bbox_inches='tight')
     plt.close()
@@ -159,7 +164,12 @@ def analyze_receptor_activations(model, data_loader, vocab_info, device, save_di
     
     ax.set_xlabel('t-SNE Dimension 1')
     ax.set_ylabel('t-SNE Dimension 2')
-    ax.set_title('t-SNE Visualization of Glomerular Representations')
+    
+    title = 't-SNE Visualization of Glomerular Representations'
+    if experiment_name:
+        title += f'\n({experiment_name})'
+    ax.set_title(title)
+    
     ax.legend()
     plt.tight_layout()
     plt.savefig(os.path.join(save_dir, 'glomeruli_tsne.png'), dpi=300, bbox_inches='tight')
@@ -185,6 +195,44 @@ def analyze_receptor_activations(model, data_loader, vocab_info, device, save_di
     
     # Entity-specific activation patterns
     entity_specificity = {}
+    
+    # Calculate Receptor Selectivity Index (RSI)
+    # RSI(r) = (max_e(mu_{r,e}) - min_e(mu_{r,e})) / max_e(mu_{r,e})
+    
+    num_receptors = mean_activations.shape[1]
+    rsi_scores = []
+    
+    for r in range(num_receptors):
+        mus = mean_activations[:, r] # Mean activations for receptor r across all entities
+        max_mu = mus.max()
+        min_mu = mus.min()
+        
+        if max_mu > 1e-6: # Avoid division by zero
+            rsi = (max_mu - min_mu) / max_mu
+        else:
+            rsi = 0.0
+        rsi_scores.append(rsi)
+    
+    avg_rsi = np.mean(rsi_scores)
+    results['avg_rsi'] = float(avg_rsi)
+    results['rsi_scores'] = [float(x) for x in rsi_scores]
+    
+    print(f"Average Receptor Selectivity Index (RSI): {avg_rsi:.4f}")
+    
+    # Plot RSI Distribution
+    plt.figure(figsize=(8, 5))
+    plt.hist(rsi_scores, bins=20, color='purple', alpha=0.7, edgecolor='black')
+    plt.xlabel('Receptor Selectivity Index (RSI)')
+    plt.ylabel('Count')
+    title = 'Distribution of Receptor Selectivity Index'
+    if experiment_name:
+        title += f'\n({experiment_name})'
+    plt.title(title)
+    plt.grid(axis='y', alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_dir, 'rsi_distribution.png'), dpi=300, bbox_inches='tight')
+    plt.close()
+
     for entity in entity_types:
         acts = np.array(receptor_activations_by_entity[entity])
         entity_mean = acts.mean(axis=0)
