@@ -38,13 +38,13 @@ class NaampadamDataset(Dataset):
         return torch.tensor(word_ids, dtype=torch.long), torch.tensor(label_ids, dtype=torch.long)
 
 
-def load_naamapadam_data(cache_dir: str = './data/naamapadam'):
+def load_wikiann_data(cache_dir: str = './data/wikiann'):
     """
-    Load Naamapadam dataset from HuggingFace.
+    Load WikiANN dataset from HuggingFace (Marathi).
     
     Returns:
         train_data: (sentences, labels) for training
-        valid_data: (sentences, labels) for validation (using test split)
+        valid_data: (sentences, labels) for validation
         test_data: (sentences, labels) for test
         label_names: List of NER tag names
     """
@@ -53,17 +53,19 @@ def load_naamapadam_data(cache_dir: str = './data/naamapadam'):
     except ImportError:
         raise ImportError("Please install datasets library: pip install datasets")
     
-    print("Loading Naamapadam dataset from HuggingFace...")
-    print("Dataset: ai4bharat/naamapadam")
+    print("Loading WikiANN dataset from HuggingFace...")
+    print("Dataset: wikiann")
     print("Configuration: mr (Marathi)")
     
     # Load dataset with Marathi configuration
-    dataset = load_dataset("ai4bharat/naamapadam", "mr", cache_dir=cache_dir, trust_remote_code=True)    
-    # The Naamapadam dataset has 'train' split only
-    # We'll split it into train/valid/test
-    train_dataset = dataset['train']
+    dataset = load_dataset("wikiann", "mr", cache_dir=cache_dir)
     
-    print(f"\nTotal samples: {len(train_dataset)}")
+    print(f"\nData splits available: {list(dataset.keys())}")
+    
+    # WikiANN has train/validation/test splits already
+    train_dataset = dataset['train']
+    valid_dataset = dataset['validation']
+    test_dataset = dataset['test']
     
     # Get label names from dataset features
     label_feature = train_dataset.features['ner_tags']
@@ -73,33 +75,20 @@ def load_naamapadam_data(cache_dir: str = './data/naamapadam'):
     print(f"Label names: {label_names}")
     
     # Extract sentences and labels
-    all_sentences = []
-    all_labels = []
+    def extract_data(split_dataset):
+        sentences = []
+        labels = []
+        for item in split_dataset:
+            tokens = item['tokens']
+            ner_tags = item['ner_tags']
+            if len(tokens) > 0:
+                sentences.append(tokens)
+                labels.append(ner_tags)
+        return sentences, labels
     
-    for item in train_dataset:
-        tokens = item['tokens']
-        ner_tags = item['ner_tags']
-        
-        # Filter out empty sentences
-        if len(tokens) > 0:
-            all_sentences.append(tokens)
-            all_labels.append(ner_tags)
-    
-    print(f"\nProcessed {len(all_sentences)} sentences")
-    
-    # Split data: 80% train, 10% valid, 10% test
-    total = len(all_sentences)
-    train_size = int(0.8 * total)
-    valid_size = int(0.1 * total)
-    
-    train_sentences = all_sentences[:train_size]
-    train_labels = all_labels[:train_size]
-    
-    valid_sentences = all_sentences[train_size:train_size + valid_size]
-    valid_labels = all_labels[train_size:train_size + valid_size]
-    
-    test_sentences = all_sentences[train_size + valid_size:]
-    test_labels = all_labels[train_size + valid_size:]
+    train_sentences, train_labels = extract_data(train_dataset)
+    valid_sentences, valid_labels = extract_data(valid_dataset)
+    test_sentences, test_labels = extract_data(test_dataset)
     
     print(f"\nData splits:")
     print(f"  Train: {len(train_sentences)} sentences")
@@ -187,11 +176,11 @@ def collate_fn(batch):
     return padded_sentences, padded_labels, lengths
 
 
-def prepare_marathi_data(cache_dir: str = './data/naamapadam',
+def prepare_marathi_data(cache_dir: str = './data/wikiann',
                          batch_size: int = 32,
                          min_freq: int = 2):
     """
-    Prepare Naamapadam (Marathi) data for training.
+    Prepare WikiANN (Marathi) data for training.
     
     Returns:
         train_loader, valid_loader, test_loader: DataLoaders
@@ -199,7 +188,7 @@ def prepare_marathi_data(cache_dir: str = './data/naamapadam',
         label2idx, idx2label: Label vocabulary
     """
     # Load data from HuggingFace
-    train_data, valid_data, test_data, label_names = load_naamapadam_data(cache_dir)
+    train_data, valid_data, test_data, label_names = load_wikiann_data(cache_dir)
     
     train_sentences, train_labels = train_data
     valid_sentences, valid_labels = valid_data
