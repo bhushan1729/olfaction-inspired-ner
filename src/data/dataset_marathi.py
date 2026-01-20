@@ -58,8 +58,7 @@ def load_naamapadam_data(cache_dir: str = './data/naamapadam'):
     print("Configuration: mr (Marathi)")
     
     # Load dataset with Marathi configuration
-    dataset = load_dataset("ai4bharat/naamapadam", "mr", cache_dir=cache_dir)
-    
+    dataset = load_dataset("ai4bharat/naamapadam", "mr", cache_dir=cache_dir, trust_remote_code=True)    
     # The Naamapadam dataset has 'train' split only
     # We'll split it into train/valid/test
     train_dataset = dataset['train']
