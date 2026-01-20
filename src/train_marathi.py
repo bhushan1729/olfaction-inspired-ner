@@ -15,9 +15,12 @@ import json
 from tqdm import tqdm
 import random
 
-from models.olfactory_ner import OlfactoryNERModel
-from data.dataset_marathi import prepare_marathi_data, load_glove_embeddings
-from utils.metrics import compute_f1, compute_detailed_metrics
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from src.data.dataset_marathi import prepare_marathi_data, load_glove_embeddings
+from src.model.olfactory_ner import create_olfactory_ner
+from src.training.evaluate import evaluate_model
 
 
 def set_seed(seed=42):
@@ -29,79 +32,55 @@ def set_seed(seed=42):
         torch.cuda.manual_seed_all(seed)
 
 
-def train_epoch(model, train_loader, optimizer, criterion, device):
+def train_epoch(model, train_loader, optimizer,device, config):
     """Train for one epoch."""
     model.train()
     total_loss = 0
     total_task_loss = 0
     
     pbar = tqdm(train_loader, desc="Training")
-    for sentences, labels, lengths in pbar:
+    for batch_idx, (sentences, tags, lengths) in enumerate(pbar):
         sentences = sentences.to(device)
-        labels = labels.to(device)
+        tags = tags.to(device)
         lengths = lengths.to(device)
         
         optimizer.zero_grad()
         
         # Forward pass
-        outputs = model(sentences, lengths)
+        task_loss = model(sentences, tags, lengths)
         
-        # Reshape for loss computation
-        outputs_flat = outputs.view(-1, outputs.size(-1))
-        labels_flat = labels.view(-1)
+        # Add regularization losses
+        sparse_loss = torch.tensor(0.0, device=device)
+        diverse_loss = model.get_diversity_loss()
         
-        # Compute loss
-        task_loss = criterion(outputs_flat, labels_flat)
+        # Total loss
+        loss = task_loss + \
+               config.get('lambda_sparse', 0.0) * sparse_loss + \
+               config.get('lambda_diverse', 0.0) * diverse_loss
         
         # Backward pass
-        task_loss.backward()
+        loss.backward()
+        
+        # Gradient clipping
+        torch.nn.utils.clip_grad_norm_(model.parameters(), config.get('gradient_clip', 5.0))
+        
         optimizer.step()
         
-        total_loss += task_loss.item()
+        # Track losses
+        total_loss += loss.item()
         total_task_loss += task_loss.item()
         
-        pbar.set_postfix(loss=task_loss.item(), task=task_loss.item())
+        # Update progress bar
+        pbar.set_postfix({
+            'loss': f'{loss.item():.4f}',
+            'task': f'{task_loss.item():.4f}'
+        })
     
-    return total_loss / len(train_loader)
-
-
-def evaluate(model, data_loader, criterion, device, idx2label):
-    """Evaluate the model."""
-    model.eval()
-    total_loss = 0
-    all_predictions = []
-    all_labels = []
-    
-    with torch.no_grad():
-        pbar = tqdm(data_loader, desc="Evaluating")
-        for sentences, labels, lengths in pbar:
-            sentences = sentences.to(device)
-            labels = labels.to(device)
-            lengths = lengths.to(device)
-            
-            # Forward pass
-            outputs = model(sentences, lengths)
-            
-            # Get predictions
-            predictions = torch.argmax(outputs, dim=-1)
-            
-            # Convert to lists for metric computation
-            for i in range(len(sentences)):
-                length = lengths[i].item()
-                pred_seq = predictions[i, :length].cpu().tolist()
-                label_seq = labels[i, :length].cpu().tolist()
-                
-                # Convert to label strings
-                pred_labels = [idx2label[p] for p in pred_seq]
-                true_labels = [idx2label[l] for l in label_seq]
-                
-                all_predictions.append(pred_labels)
-                all_labels.append(true_labels)
-    
-    # Compute metrics
-    f1, precision, recall = compute_f1(all_predictions, all_labels)
-    
-    return f1, precision, recall, all_predictions, all_labels
+    n_batches = len(train_loader)
+    return {
+        'total_loss': total_loss / n_batches,
+        'task_loss': total_task_loss / n_batches
+    }
 
 
 def train(config, args):
@@ -120,31 +99,32 @@ def train(config, args):
         min_freq=config.get('min_freq', 2)
     )
     
-    word2idx = vocab_info['word2idx']
-    label2idx = vocab_info['label2idx']
-    idx2label = vocab_info['idx2label']
+    vocab_size = len(vocab_info['word2idx'])
+    num_tags = len(vocab_info['label2idx'])
     
     # Load embeddings
-    embedding_matrix = load_glove_embeddings(
-        config.get('glove_path', './data/glove.6B.300d.txt'),
-        word2idx,
-        config.get('embedding_dim', 300)
-    )
+    pretrained_embeddings = None
+    if config.get('use_pretrained_embeddings', True):
+        glove_path = config.get('glove_path', './data/glove.6B.300d.txt')
+        if os.path.exists(glove_path):
+            print(f"\nLoading GloVe embeddings from {glove_path}...")
+            pretrained_embeddings = load_glove_embeddings(
+                glove_path,
+                vocab_info['word2idx'],
+                embed_dim=config.get('embed_dim', 300)
+            )
+        else:
+            print(f"\nWarning: GloVe file not found at {glove_path}")
+            print("Using random embeddings. Download GloVe from: https://nlp.stanford.edu/projects/glove/")
     
     # Create model
     print("\n" + "=" * 50)
     print("Creating olfactory model...")
     print("=" * 50)
-    model = OlfactoryNERModel(
-        vocab_size=len(word2idx),
-        embedding_dim=config['embedding_dim'],
-        num_receptors=config['num_receptors'],
-        num_glomeruli=config['num_glomeruli'],
-        num_labels=len(label2idx),
-        dropout=config.get('dropout', 0.2),
-        activation=config.get('activation', 'relu'),
-        pretrained_embeddings=torch.FloatTensor(embedding_matrix)
-    ).to(device)
+    
+    model = create_olfactory_ner(vocab_size, num_tags, config, pretrained_embeddings)
+    
+    model = model.to(device)
     
     # Count parameters
     total_params = sum(p.numel() for p in model.parameters())
@@ -153,8 +133,12 @@ def train(config, args):
     print(f"Trainable parameters: {trainable_params:,}")
     
     # Setup training
-    criterion = nn.CrossEntropyLoss(ignore_index=0)  # Ignore padding
     optimizer = optim.Adam(model.parameters(), lr=config['learning_rate'])
+    
+    # Learning rate scheduler
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, mode='max', factor=0.5, patience=2
+    )
     
     # Training loop
     best_f1 = 0
@@ -165,28 +149,29 @@ def train(config, args):
     print("Starting training...")
     print("=" * 50)
     
-    for epoch in range(config['num_epochs']):
+    for epoch in range(config.get('num_epochs', 20)):
         print(f"\n{'=' * 50}")
-        print(f"Epoch {epoch + 1}/{config['num_epochs']}")
+        print(f"Epoch {epoch + 1}/{config.get('num_epochs', 20)}")
         print("=" * 50)
         
         # Train
-        train_loss = train_epoch(model, train_loader, optimizer, criterion, device)
+        train_metrics = train_epoch(model, train_loader, optimizer, device, config)
         
-        # Validate
+        # Evaluate
         print("\nEvaluating on validation set...")
-        valid_f1, valid_precision, valid_recall, _, _ = evaluate(
-            model, valid_loader, criterion, device, idx2label
-        )
+        valid_metrics = evaluate_model(model, valid_loader, vocab_info['idx2label'], device)
         
-        print(f"\nTrain Loss: {train_loss:.4f}")
-        print(f"Valid F1: {valid_f1:.4f}")
-        print(f"Valid Precision: {valid_precision:.4f}")
-        print(f"Valid Recall: {valid_recall:.4f}")
+        print(f"\nTrain Loss: {train_metrics['total_loss']:.4f}")
+        print(f"Valid F1: {valid_metrics['f1']:.4f}")
+        print(f"Valid Precision: {valid_metrics['precision']:.4f}")
+        print(f"Valid Recall: {valid_metrics['recall']:.4f}")
+        
+        # Scheduler step
+        scheduler.step(valid_metrics['f1'])
         
         # Save best model
-        if valid_f1 > best_f1:
-            best_f1 = valid_f1
+        if valid_metrics['f1'] > best_f1:
+            best_f1 = valid_metrics['f1']
             patience_counter = 0
             
             # Save model
@@ -196,9 +181,10 @@ def train(config, args):
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'best_f1': best_f1,
-                'config': config
+                'config': config,
+                'vocab_info': vocab_info
             }, os.path.join(args.save_dir, 'best_model.pt'))
-            print(f"\n✓ Saved new best model (F1: {valid_f1:.4f})")
+            print(f"\n✓ Saved new best model (F1: {valid_metrics['f1']:.4f})")
         else:
             patience_counter += 1
             print(f"\nNo improvement ({patience_counter}/{patience})")
@@ -208,35 +194,29 @@ def train(config, args):
                 break
     
     # Load best model for final evaluation
-    checkpoint = torch.load(os.path.join(args.save_dir, 'best_model.pt'))
+    checkpoint = torch.load(os.path.join(args.save_dir, 'best_model.pt'), weights_only=False)
     model.load_state_dict(checkpoint['model_state_dict'])
     
     # Final evaluation on test set
     print("\n" + "=" * 50)
     print("Final evaluation on test set...")
     print("=" * 50)
-    test_f1, test_precision, test_recall, test_predictions, test_labels = evaluate(
-        model, test_loader, criterion, device, idx2label
-    )
+    test_metrics = evaluate_model(model, test_loader, vocab_info['idx2label'], device)
     
-    print(f"\nTest F1: {test_f1:.4f}")
-    print(f"Test Precision: {test_precision:.4f}")
-    print(f"Test Recall: {test_recall:.4f}")
+    print(f"\nTest F1: {test_metrics['f1']:.4f}")
+    print(f"Test Precision: {test_metrics['precision']:.4f}")
+    print(f"Test Recall: {test_metrics['recall']:.4f}")
     
-    # Compute detailed metrics
-    detailed_metrics = compute_detailed_metrics(test_predictions, test_labels)
-    
-    print("\nPer-entity F1 scores:")
-    for entity, score in detailed_metrics.items():
-        print(f"  {entity}: {score:.4f}")
+    # Per-entity results
+    if 'per_entity' in test_metrics:
+        print("\nPer-entity F1 scores:")
+        for entity, f1 in test_metrics['per_entity'].items():
+            print(f"  {entity}: {f1:.4f}")
     
     # Save results
     results = {
-        'test_f1': test_f1,
-        'test_precision': test_precision,
-        'test_recall': test_recall,
-        'best_valid_f1': best_f1,
-        'detailed_metrics': detailed_metrics,
+        'test': test_metrics,
+        'best_f1': best_f1,
         'config': config
     }
     
