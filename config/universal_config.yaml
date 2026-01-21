@@ -23,13 +23,27 @@ datasets:
     glove_path: null
     use_pretrained_embeddings: false
 
+  # Hindi (WikiANN)
+  wikiann_hi:
+    dataset: "wikiann"
+    language: "hi"
+    glove_path: null
+    use_pretrained_embeddings: false
+
+  # Tamil (WikiANN)
+  wikiann_ta:
+    dataset: "wikiann"
+    language: "ta"
+    glove_path: null
+    use_pretrained_embeddings: false
+
 # Reusable anchors for common settings
 common_settings: &common
   embedding_dim: 300
   dropout: 0.2
   batch_size: 32
   learning_rate: 0.001
-  num_epochs: 20
+  num_epochs: 30
   patience: 5
   min_freq: 2
   lambda_sparse: 0.001   # Default sparsity
@@ -57,12 +71,12 @@ experiments:
     activation: "gelu"
 
   # 3. Mish Activation
-  activation_mish:
-    <<: *common
-    model_type: "olfactory"
-    num_receptors: 128
-    num_glomeruli: 32
-    activation: "mish"
+  #activation_mish:
+  #  <<: *common
+  #  model_type: "olfactory"
+  #  num_receptors: 128
+  #  num_glomeruli: 32
+  #  activation: "mish"
 
   # 4. More Glomeruli
   more_glomeruli:
