@@ -97,3 +97,19 @@ experiments:
     num_glomeruli: 32
     activation: "gelu"
     use_crf: false        # Disable CRF
+
+  # 8. More Glomeruli (GELU)
+  gelu_more_glomeruli:
+    <<: *common
+    model_type: "olfactory"
+    num_receptors: 128
+    num_glomeruli: 64
+    activation: "gelu"
+
+  # 9. More Receptors + More Glomeruli
+  gelu_more_receptors_more_glomeruli:
+    <<: *common
+    model_type: "olfactory"
+    num_receptors: 256
+    num_glomeruli: 128
+    activation: "gelu"

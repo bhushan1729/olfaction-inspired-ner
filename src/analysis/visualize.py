@@ -107,6 +107,39 @@ def analyze_receptor_activations(model, data_loader, vocab_info, device, save_di
     results['mean_activations'] = mean_activations
     results['entity_types'] = entity_types
     
+    # 1b. Glomeruli activation heatmap per entity type
+    print("Creating glomeruli activation heatmap...")
+    fig_g, ax_g = plt.subplots(figsize=(12, 6))
+    
+    mean_glomeruli_activations = []
+    
+    for entity in entity_types:
+        acts = np.array(glomeruli_activations_by_entity[entity])
+        mean_act = acts.mean(axis=0)
+        mean_glomeruli_activations.append(mean_act)
+    
+    mean_glomeruli_activations = np.array(mean_glomeruli_activations)
+    
+    sns.heatmap(mean_glomeruli_activations, 
+                xticklabels=range(0, mean_glomeruli_activations.shape[1], 10),
+                yticklabels=entity_types,
+                cmap='YlOrRd',
+                cbar_kws={'label': 'Mean Activation'},
+                ax=ax_g)
+    ax_g.set_xlabel('Glomerulus Index')
+    ax_g.set_ylabel('Entity Type')
+    
+    title_g = 'Mean Glomeruli Activations by Entity Type'
+    if experiment_name:
+        title_g += f'\n({experiment_name})'
+    ax_g.set_title(title_g)
+    
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_dir, 'glomeruli_heatmap.png'), dpi=300, bbox_inches='tight')
+    plt.close()
+
+    results['mean_glomeruli_activations'] = mean_glomeruli_activations
+    
     # 2. Top activating tokens per receptor
     print("Finding top activating tokens per receptor...")
     top_k = 10
