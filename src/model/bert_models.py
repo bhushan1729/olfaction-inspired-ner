@@ -1,9 +1,9 @@
 import torch
 import torch.nn as nn
 from transformers import AutoModel
-from src.model.olfactory_ner import ReceptorLayer, GlomeruliLayer, BiLSTM_CRF
-# Ensure we import BiLSTM_CRF or compatible layer. If not exported, we redefine or expose it.
-# Assuming we can import components. If implementation details differ, I will adapt.
+# Corrected Imports
+from src.model.layers import ReceptorLayer, GlomerularLayer
+from src.model.crf import CRF
 
 class BertBaseline(nn.Module):
     def __init__(self, num_labels, model_name='bert-base-multilingual-cased', dropout=0.1):
@@ -43,21 +43,29 @@ class BertOlfactory(nn.Module):
         self.receptor_layer = ReceptorLayer(
             input_dim=768, 
             num_receptors=config.get('num_receptors', 128),
-            sparsity=config.get('lambda_sparse', 0.1) # Passing arg, though layer usually takes just dim
+            activation='relu' # Default to ReLU
         )
         
-        self.glomeruli_layer = GlomeruliLayer(
+        self.glomeruli_layer = GlomerularLayer( # Corrected Class Name
             num_receptors=config.get('num_receptors', 128),
             num_glomeruli=config.get('num_glomeruli', 32)
         )
         
-        # BiLSTM + CRF
-        # Input to BiLSTM is num_glomeruli
-        self.bilstm_crf = BiLSTM_CRF(
-            input_dim=config.get('num_glomeruli', 32),
-            hidden_dim=config.get('lstm_hidden', 128),
-            num_tags=num_labels
+        # BiLSTM
+        self.lstm_hidden = config.get('lstm_hidden', 128)
+        self.bilstm = nn.LSTM(
+            input_size=config.get('num_glomeruli', 32),
+            hidden_size=self.lstm_hidden,
+            num_layers=1,
+            bidirectional=True,
+            batch_first=True
         )
+        
+        # Linear Projection to Tags
+        self.hidden2tag = nn.Linear(self.lstm_hidden * 2, num_labels)
+        
+        # CRF
+        self.crf = CRF(num_labels, batch_first=True)
         
     def forward(self, input_ids, attention_mask, labels=None):
         # 1. BERT Features
@@ -66,23 +74,26 @@ class BertOlfactory(nn.Module):
             bert_feats = outputs.last_hidden_state # (Batch, Seq, 768)
             
         # 2. Receptors
-        receptor_out, _ = self.receptor_layer(bert_feats) # (Batch, Seq, Num_Rec)
+        receptor_out = self.receptor_layer(bert_feats) # (Batch, Seq, Num_Rec)
         
         # 3. Glomeruli
-        glomeruli_out, _ = self.glomeruli_layer(receptor_out) # (Batch, Seq, Num_Glom)
+        glomeruli_out = self.glomeruli_layer(receptor_out) # (Batch, Seq, Num_Glom)
         
-        # 4. BiLSTM + CRF
-        # The BiLSTM_CRF module usually expects (embeds, tags, mask)
-        # Check original signature. Usually it returns loss if tags provided, else path.
-        # We need to adapt because BiLSTM_CRF usually handles masking internally or expects lengths/mask.
+        # 4. BiLSTM
+        lstm_out, _ = self.bilstm(glomeruli_out) # (Batch, Seq, Hidden*2)
+        
+        # 5. Emission Scores
+        emissions = self.hidden2tag(lstm_out) # (Batch, Seq, Num_Tags)
         
         if labels is not None:
-            # Training
-            loss = self.bilstm_crf(glomeruli_out, labels, attention_mask.bool())
+            # Training: Negative Log Likelihood
+            # Mask generation (ensure boolean)
+            mask = attention_mask.bool()
+            # CRF returns negative log likelihood
+            loss = -self.crf(emissions, labels, mask=mask, reduction='mean')
             return None, loss
         else:
-            # Inference
-            predictions = self.bilstm_crf(glomeruli_out, mask=attention_mask.bool())
-            # Convert simple path list to aligned tensor if needed, but list is fine for eval
+            # Inference: Viterbi Decoding
+            mask = attention_mask.bool()
+            predictions = self.crf.decode(emissions, mask=mask)
             return predictions, None
-
