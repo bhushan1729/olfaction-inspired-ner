@@ -6,23 +6,35 @@ from src.model.layers import ReceptorLayer, GlomerularLayer
 from src.model.crf import CRF
 
 class BertBaseline(nn.Module):
-    def __init__(self, num_labels, model_name='bert-base-multilingual-cased', dropout=0.1):
+    def __init__(self, num_labels, model_name='bert-base-multilingual-cased', dropout=0.1, freeze_bert=True):
         super(BertBaseline, self).__init__()
         self.bert = AutoModel.from_pretrained(model_name)
+        
+        # Freeze BERT if requested (for fair comparison with olfactory model)
+        if freeze_bert:
+            for param in self.bert.parameters():
+                param.requires_grad = False
+        
         self.dropout = nn.Dropout(dropout)
         self.classifier = nn.Linear(768, num_labels) # mBERT hidden is 768
 
     def forward(self, input_ids, attention_mask, labels=None):
-        outputs = self.bert(input_ids=input_ids, attention_mask=attention_mask)
-        sequence_output = outputs.last_hidden_state
+        # Use no_grad for frozen BERT to save memory
+        if not next(self.bert.parameters()).requires_grad:
+            with torch.no_grad():
+                outputs = self.bert(input_ids=input_ids, attention_mask=attention_mask)
+                sequence_output = outputs.last_hidden_state
+        else:
+            outputs = self.bert(input_ids=input_ids, attention_mask=attention_mask)
+            sequence_output = outputs.last_hidden_state
+            
         sequence_output = self.dropout(sequence_output)
         logits = self.classifier(sequence_output)
         
         loss = None
         if labels is not None:
-            loss_fct = nn.CrossEntropyLoss()
-            # Only calculate loss on active parts (not -100)
-            active_loss = attention_mask.view(-1) == 1
+            loss_fct = nn.CrossEntropyLoss(ignore_index=-100)
+            # Flatten for CrossEntropyLoss
             active_logits = logits.view(-1, self.classifier.out_features)
             active_labels = labels.view(-1)
             loss = loss_fct(active_logits, active_labels)

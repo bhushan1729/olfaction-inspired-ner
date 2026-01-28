@@ -63,17 +63,35 @@ def get_bert_dataset(dataset_name, language=None, model_name='bert-base-multilin
     # Load Dataset
     if dataset_name == 'conll2003':
         ds = load_dataset("tner/conll2003")
+        tag_field = 'tags'  # tner uses 'tags' not 'ner_tags'
     elif dataset_name == 'wikiann':
         # Use Babelscape/wikineural as alternative (script-free, supports multiple languages)
         ds = load_dataset("Babelscape/wikineural", language)
+        tag_field = 'ner_tags'
     else: # Fallback or custom
         raise ValueError(f"Dataset {dataset_name} not supported yet in bert_loader.")
 
     # Create Label Map
-    # Extract unique labels from train set
-    train_tags = ds['train'].features['ner_tags'].feature.names
+    # Extract unique labels from train set - handle both 'tags' and 'ner_tags'
+    if tag_field in ds['train'].features:
+        if hasattr(ds['train'].features[tag_field], 'feature'):
+            # ClassLabel inside Sequence
+            train_tags = ds['train'].features[tag_field].feature.names
+        else:
+            # Direct ClassLabel
+            train_tags = ds['train'].features[tag_field].names
+    else:
+        raise ValueError(f"Tag field '{tag_field}' not found in dataset features")
+    
     label2idx = {tag: i for i, tag in enumerate(train_tags)}
     idx2label = {i: tag for tag, i in label2idx.items()}
+    
+    # Update dataset to use consistent field name
+    def rename_tags(example):
+        example['ner_tags'] = example.get(tag_field, example.get('ner_tags', []))
+        return example
+    
+    ds = ds.map(rename_tags)
 
     train_dataset = BertNERDataset(ds['train'], tokenizer, label2idx, max_len)
     valid_dataset = BertNERDataset(ds['validation'], tokenizer, label2idx, max_len)
@@ -84,3 +102,4 @@ def get_bert_dataset(dataset_name, language=None, model_name='bert-base-multilin
     test_loader = DataLoader(test_dataset, batch_size=batch_size)
 
     return train_loader, valid_loader, test_loader, {'label2idx': label2idx, 'idx2label': idx2label}
+

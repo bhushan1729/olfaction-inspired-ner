@@ -2,6 +2,7 @@
 torch>=2.0.0
 numpy>=1.24.0
 scikit-learn>=1.3.0
+scipy>=1.10.0  # For statistical tests
 seqeval>=1.2.2  # NER evaluation metrics
 python-crfsuite>=0.9.9  # CRF layer
 matplotlib>=3.7.0
@@ -9,6 +10,12 @@ seaborn>=0.12.0
 pandas>=2.0.0
 tqdm>=4.65.0
 
+# For BERT baseline experiments
+transformers>=4.30.0
+datasets>=2.12.0
+accelerate>=0.20.0  # For efficient transformers training
+
 # Optional but recommended
 tensorboard>=2.13.0
 wandb>=0.15.0  # For experiment tracking (optional)
+
