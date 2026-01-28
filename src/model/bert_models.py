@@ -87,10 +87,16 @@ class BertOlfactory(nn.Module):
         
         if labels is not None:
             # Training: Negative Log Likelihood
-            # Mask generation (ensure boolean)
-            mask = attention_mask.bool()
-            # CRF returns negative log likelihood
-            loss = -self.crf(emissions, labels, mask=mask, reduction='mean')
+            # Create mask for valid tokens (excluding padding AND subword ignores)
+            # labels is -100 for ignored subwords.
+            active_mask = (labels != -100) & attention_mask.bool()
+            
+            # Clamp labels to be valid (>=0) for gather/lookup
+            # We use 0 (usually 'O') as placeholder; mask ensures it doesn't affect loss
+            safe_labels = labels.clone()
+            safe_labels[labels == -100] = 0
+            
+            loss = -self.crf(emissions, safe_labels, mask=active_mask)
             return None, loss
         else:
             # Inference: Viterbi Decoding

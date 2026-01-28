@@ -43,7 +43,7 @@ def train(args):
     
     # 3. Training Loop
     best_f1 = 0
-    save_path = os.path.join(args.save_dir, args.dataset, args.language, f"mbert_{args.experiment}")
+    save_path = os.path.join(args.save_dir, args.dataset, args.language if args.language else 'en', f"mbert_{args.experiment}")
     os.makedirs(save_path, exist_ok=True)
 
     for epoch in range(args.epochs):
