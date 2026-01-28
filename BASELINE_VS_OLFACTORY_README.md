@@ -38,17 +38,17 @@ View the report at `comparison_analysis/COMPARISON_REPORT.md`.
 
 ## What's Being Compared?
 
-### Baseline (LLM-only)
+### Baseline (LLM-only + CRF)
 ```
-mBERT (frozen) → Linear Classifier → NER Tags
-```
-
-### Olfactory (LLM + Bio-Inspired)
-```
-mBERT (frozen) → Receptors → Glomeruli → BiLSTM → CRF → NER Tags
+mBERT (frozen) → Linear Classifier → CRF → NER Tags
 ```
 
-**Key**: Both use frozen mBERT. The ONLY difference is the olfactory processing.
+### Olfactory (LLM + Bio-Inspired + CRF)
+```
+mBERT (frozen) → Receptors → Glomeruli → Linear Classifier → CRF → NER Tags
+```
+
+**Key**: Both differ ONLY in the olfactory processing. We removed BiLSTM from the olfactory model and added CRF to the baseline for a strictly fair comparison.
 
 ## Why This Design?
 

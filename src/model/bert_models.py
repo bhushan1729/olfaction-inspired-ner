@@ -17,6 +17,9 @@ class BertBaseline(nn.Module):
         
         self.dropout = nn.Dropout(dropout)
         self.classifier = nn.Linear(768, num_labels) # mBERT hidden is 768
+        
+        # CRF for structured prediction (matching olfactory model)
+        self.crf = CRF(num_labels, batch_first=True)
 
     def forward(self, input_ids, attention_mask, labels=None):
         # Use no_grad for frozen BERT to save memory
@@ -29,17 +32,24 @@ class BertBaseline(nn.Module):
             sequence_output = outputs.last_hidden_state
             
         sequence_output = self.dropout(sequence_output)
-        logits = self.classifier(sequence_output)
+        emissions = self.classifier(sequence_output)  # Emission scores for CRF
         
-        loss = None
         if labels is not None:
-            loss_fct = nn.CrossEntropyLoss(ignore_index=-100)
-            # Flatten for CrossEntropyLoss
-            active_logits = logits.view(-1, self.classifier.out_features)
-            active_labels = labels.view(-1)
-            loss = loss_fct(active_logits, active_labels)
-        
-        return logits, loss
+            # Training: CRF Negative Log Likelihood
+            mask = attention_mask.bool()
+            
+            # Replace -100 (padding) with 0 for CRF
+            safe_labels = labels.clone()
+            safe_labels[labels == -100] = 0
+            
+            # CRF Loss
+            loss = -self.crf(emissions, safe_labels, mask=mask)
+            return None, loss
+        else:
+            # Inference: Viterbi Decoding
+            mask = attention_mask.bool()
+            predictions = self.crf.decode(emissions, mask=mask)
+            return predictions, None
 
 class BertOlfactory(nn.Module):
     def __init__(self, num_labels, config, model_name='bert-base-multilingual-cased'):
@@ -58,23 +68,14 @@ class BertOlfactory(nn.Module):
             activation='relu' # Default to ReLU
         )
         
-        self.glomeruli_layer = GlomerularLayer( # Corrected Class Name
+        self.glomeruli_layer = GlomerularLayer(
             num_receptors=config.get('num_receptors', 128),
             num_glomeruli=config.get('num_glomeruli', 32)
         )
         
-        # BiLSTM
-        self.lstm_hidden = config.get('lstm_hidden', 128)
-        self.bilstm = nn.LSTM(
-            input_size=config.get('num_glomeruli', 32),
-            hidden_size=self.lstm_hidden,
-            num_layers=1,
-            bidirectional=True,
-            batch_first=True
-        )
-        
-        # Linear Projection to Tags
-        self.hidden2tag = nn.Linear(self.lstm_hidden * 2, num_labels)
+        # Linear Projection to Tags (directly from Glomeruli, no BiLSTM)
+        num_glomeruli = config.get('num_glomeruli', 32)
+        self.hidden2tag = nn.Linear(num_glomeruli, num_labels)
         
         # CRF
         self.crf = CRF(num_labels, batch_first=True)
@@ -91,11 +92,8 @@ class BertOlfactory(nn.Module):
         # 3. Glomeruli
         glomeruli_out = self.glomeruli_layer(receptor_out) # (Batch, Seq, Num_Glom)
         
-        # 4. BiLSTM
-        lstm_out, _ = self.bilstm(glomeruli_out) # (Batch, Seq, Hidden*2)
-        
-        # 5. Emission Scores
-        emissions = self.hidden2tag(lstm_out) # (Batch, Seq, Num_Tags)
+        # 4. Emission Scores (no BiLSTM - direct from Glomeruli)
+        emissions = self.hidden2tag(glomeruli_out) # (Batch, Seq, Num_Tags)
         
         if labels is not None:
             # Training: Negative Log Likelihood

@@ -8,48 +8,45 @@ This guide describes the minimal, correct experiment to validate:
 
 ## The Two Models
 
-### Baseline (LLM-only)
+### Baseline (LLM-only + CRF)
 ```
-mBERT (frozen) → Dropout → Linear Classifier → NER Tags
-Loss: CrossEntropyLoss
-```
-
-**Purpose**: Measure how good a strong pretrained language model is by itself.
-
-### Olfactory (LLM + Olfactory layers)
-```
-mBERT (frozen) → Receptors → Glomeruli → BiLSTM → CRF → NER Tags  
+mBERT (frozen) → Dropout → Linear Classifier → CRF → NER Tags
 Loss: Negative Log Likelihood from CRF
 ```
 
-**Purpose**: Does biologically-inspired preprocessing improve NER?
+**Purpose**: Measure how good a strong pretrained language model with structured decoding is.
+
+### Olfactory (LLM + Olfactory layers + CRF)
+```
+mBERT (frozen) → Receptors → Glomeruli → Linear Classifier → CRF → NER Tags
+Loss: Negative Log Likelihood from CRF
+```
+
+**Purpose**: Does biologically-inspired preprocessing improve NER *beyond* what CRF already provides?
 
 ## Why This Design?
 
 ### 1. Both use frozen mBERT
-- **Fair comparison**: Models differ ONLY in the olfactory layers
-- **Proves contribution**: Any improvement comes from olfactory processing, not BERT fine-tuning
+- **Fair comparison**: Models differ ONLY in the olfactory layers and CRF usage
+- **Proves contribution**: Any improvement is from the added components, not BERT fine-tuning
 
-### 2. Why BiLSTM + CRF for olfactory but not baseline?
-**Because NER is a structured sequence task, not just token classification.**
+### 2. Why NO BiLSTM?
+- **Controlled Variable**: We removed BiLSTM from the olfactory model to make the comparison cleaner.
+- **Hypothesis Isolation**: We want to know if the *Olfactory feature transformation* helps, not if BiLSTM helps.
+- **Fairness**: Both models now have the same depth after BERT (Linear -> CRF), with the olfactory model adding the specialized Feature Extractor layers.
 
-Without BiLSTM+CRF, you get:
-- Illegal tag sequences like `O → I-PER → I-LOC`
-- Reviewers saying: "Your gains come from decoding weakness, not representation quality"
+### 3. Why CRF for BOTH?
+- **Standard Baseline**: CRF is a standard component for SOTA NER systems.
+- **Fair Comparison**: If only one had CRF, improvements could be attributed to structured decoding. By giving BOTH CRF, we isolate the representational quality of the Olfactory layers.
 
-The baseline uses simple token-wise classification because:
-- It represents what a "pure LLM" baseline does
-- The olfactory model's added value is in BOTH representations AND structured decoding
+### 4. What exactly are you claiming?
 
-### 3. What exactly are you claiming?
-
-**NOT:** "We model context better than transformers"  
-**YES:** "Before sequence modeling, structured, sparse, convergent representations help NER"
+**NOT:** "We model context better than transformers/BiLSTMs"
+**YES:** "Structured, sparse, convergent representations (Olfactory) provide better features for the CRF than raw BERT embeddings"
 
 The contribution is the olfactory preprocessing:
 - **Receptors**: Specialized feature detectors (sparsity + specialization)
 - **Glomeruli**: Convergent aggregation (many → few, denoising)
-- **BiLSTM**: Context modeling (standard in NER)
 - **CRF**: Tag transition constraints (standard in NER)
 
 ## Running Experiments

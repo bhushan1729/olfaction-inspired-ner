@@ -48,10 +48,6 @@ def train(args):
     best_f1 = 0
     save_path = os.path.join(args.save_dir, args.dataset, args.language if args.language else 'en', f"mbert_{args.experiment}")
     os.makedirs(save_path, exist_ok=True)
-    
-    # Save initial model as fallback
-    torch.save(model.state_dict(), os.path.join(save_path, 'best_model.pt'))
-    print("Saved initial model")
 
     for epoch in range(args.epochs):
         model.train()
@@ -88,75 +84,10 @@ def train(args):
     # 4. Final Test
     print("Testing Best Model...")
     model.load_state_dict(torch.load(os.path.join(save_path, 'best_model.pt')))
-    
-    # Get comprehensive test metrics
     test_f1 = evaluate(model, test_loader, idx2label, device, args.experiment, verbose=True)
     
-    # Also compute and save full metrics
-    from src.training.metrics import compute_ner_metrics
-    model.eval()
-    true_labels = []
-    pred_labels = []
-    
-    with torch.no_grad():
-        for batch in test_loader:
-            input_ids = batch['input_ids'].to(device)
-            mask = batch['attention_mask'].to(device)
-            labels = batch['labels'].to(device)
-            
-            if args.experiment == 'baseline':
-                logits, _ = model(input_ids, mask)
-                preds = torch.argmax(logits, dim=2)
-                batch_preds = preds.cpu().numpy()
-            else:
-                preds_list, _ = model(input_ids, mask)
-                batch_preds = preds_list
-            
-            batch_labels = labels.cpu().numpy()
-            
-            for i in range(len(batch_labels)):
-                seq_labels = []
-                seq_preds = []
-                for j, label_id in enumerate(batch_labels[i]):
-                    if label_id != -100:
-                        seq_labels.append(idx2label[label_id])
-                        if args.experiment == 'baseline':
-                            pred_id = batch_preds[i][j]
-                        else:
-                            pred_id = batch_preds[i][j] if j < len(batch_preds[i]) else 0
-                        seq_preds.append(idx2label.get(pred_id, 'O'))
-                true_labels.append(seq_labels)
-                pred_labels.append(seq_preds)
-    
-    full_metrics = compute_ner_metrics(true_labels, pred_labels, verbose=False)
-    
-    # Helper function to convert numpy types to Python types for JSON serialization
-    def convert_to_serializable(obj):
-        """Convert numpy types to Python types for JSON serialization."""
-        import numpy as np
-        if isinstance(obj, np.integer):
-            return int(obj)
-        elif isinstance(obj, np.floating):
-            return float(obj)
-        elif isinstance(obj, np.ndarray):
-            return obj.tolist()
-        elif isinstance(obj, dict):
-            return {key: convert_to_serializable(value) for key, value in obj.items()}
-        elif isinstance(obj, list):
-            return [convert_to_serializable(item) for item in obj]
-        else:
-            return obj
-    
     # Save Results
-    results = {
-        'test_f1': float(test_f1),
-        'test_precision': float(full_metrics['precision']),
-        'test_recall': float(full_metrics['recall']),
-        'test_accuracy': float(full_metrics['accuracy']),
-        'best_val_f1': float(best_f1),
-        'per_entity_metrics': convert_to_serializable(full_metrics['per_entity']),
-        'args': vars(args)
-    }
+    results = {'test_f1': test_f1, 'best_val_f1': best_f1, 'args': vars(args)}
     with open(os.path.join(save_path, 'results.json'), 'w') as f:
         json.dump(results, f, indent=2)
 
@@ -169,65 +100,56 @@ def evaluate(model, loader, idx2label, device, experiment_type, verbose=False):
         for batch in loader:
             input_ids = batch['input_ids'].to(device)
             mask = batch['attention_mask'].to(device)
-            labels = batch['labels'].to(device)
+            labels = batch['labels'].to(device) # -100 for ignored
 
             if experiment_type == 'baseline':
                 logits, _ = model(input_ids, mask)
                 preds = torch.argmax(logits, dim=2) # (Batch, Seq)
+            else:
+                # BertOlfactory returns list of paths (decoded tags)
+                # We need to map these back or align them
+                # Since CRF decode returns LIST of lists of tag INDICES (usually), check BiLSTM_CRF output
+                # If existing BiLSTM_CRF returns indices:
+                preds_list, _ = model(input_ids, mask) 
+                # Pad to tensor for uniform handling or process lists directly
+                # Let's assume process lists directly for now
+                pass
+
+            # Align Predictions
+            # We must only compare tokens where label != -100
+            batch_labels = labels.cpu().numpy()
+            if experiment_type == 'baseline':
                 batch_preds = preds.cpu().numpy()
             else:
-                # BertOlfactory returns list of paths (decoded tags from CRF)
-                preds_list, _ = model(input_ids, mask) 
-                # preds_list is a list of lists of tag indices
+                # preds_list is list of list of ints
                 batch_preds = preds_list
 
-            # Align Predictions with labels
-            # We need to reconstruct word_ids to only count first subwords
-            batch_labels = labels.cpu().numpy()
-            batch_input_ids = input_ids.cpu().numpy()
-
             for i in range(len(batch_labels)):
-                seq_labels = []
-                seq_preds = []
-                
-                # Track which word we're on to only count first subword
-                previous_word_idx = None
-                
-                # We need to reconstruct word boundaries
-                # For now, use a simpler approach: count non-padding, non-special tokens
-                for j in range(len(batch_labels[i])):
-                    label_id = batch_labels[i][j]
-                    
-                    # Skip padding (label -100 in our new setup means padding only)
-                    if label_id == -100:
-                        continue
-                    
-                    # For simplicity in evaluation: include ALL labeled tokens
-                    # The CRF learns on all subwords, but we can evaluate on all too
-                    # This is actually more informative for subword-level NER
-                    seq_labels.append(idx2label[label_id])
-                    
-                    # Get prediction
-                    if experiment_type == 'baseline':
-                        pred_id = batch_preds[i][j]
-                    else:
-                        # For CRF: preds_list[i] is a list of predicted tags for sequence i
-                        if j < len(batch_preds[i]):
+                params_labels = []
+                params_preds = []
+                for j, label_id in enumerate(batch_labels[i]):
+                    if label_id != -100:
+                        params_labels.append(idx2label[label_id])
+                        
+                        # Get prediction
+                        if experiment_type == 'baseline':
                             pred_id = batch_preds[i][j]
                         else:
-                            pred_id = 0 # Default to 'O'
-                    
-                    seq_preds.append(idx2label.get(pred_id, 'O'))
+                            # CRF output usually matches sequence length logic
+                            # But CRF decode might just return the valid path. 
+                            # Need to make sure lengths align. 
+                            # Usually CRF Viterbi decodes the whole sequence.
+                            if j < len(batch_preds[i]):
+                                pred_id = batch_preds[i][j]
+                            else:
+                                pred_id = 0 # Default O
+                        
+                        params_preds.append(idx2label.get(pred_id, 'O'))
                 
-                if seq_labels:  # Only add if non-empty
-                    true_labels.append(seq_labels)
-                    pred_labels.append(seq_preds)
+                true_labels.append(params_labels)
+                pred_labels.append(params_preds)
 
-    # Compute comprehensive metrics
-    from src.training.metrics import compute_ner_metrics
-    metrics = compute_ner_metrics(true_labels, pred_labels, verbose=verbose)
-    
-    return metrics['f1']
+    return f1_score(true_labels, pred_labels)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
