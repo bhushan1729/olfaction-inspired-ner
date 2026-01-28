@@ -114,7 +114,7 @@ class BertOlfactory(nn.Module):
             
             # Option 1: Only use attention_mask (all real tokens)
             # This includes subwords, which is what we want - CRF will learn transitions
-            loss = -self.crf(emissions, safe_labels, mask=mask, reduction='mean')
+            loss = -self.crf(emissions, safe_labels, mask=mask)
             
             return None, loss
         else:
