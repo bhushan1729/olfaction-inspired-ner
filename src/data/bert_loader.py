@@ -62,7 +62,7 @@ def get_bert_dataset(dataset_name, language=None, model_name='bert-base-multilin
     
     # Load Dataset
     if dataset_name == 'conll2003':
-        ds = load_dataset("conll2003", trust_remote_code=True)
+        ds = load_dataset("tner/conll2003")
     elif dataset_name == 'wikiann':
         try:
             ds = load_dataset("wikiann", language, trust_remote_code=True)
