@@ -8,6 +8,9 @@ from tqdm import tqdm
 from seqeval.metrics import f1_score, precision_score, recall_score, classification_report
 import numpy as np
 
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from src.data.bert_loader import get_bert_dataset
 from src.model.bert_models import BertBaseline, BertOlfactory
 
