@@ -64,7 +64,11 @@ def get_bert_dataset(dataset_name, language=None, model_name='bert-base-multilin
     if dataset_name == 'conll2003':
         ds = load_dataset("conll2003")
     elif dataset_name == 'wikiann':
-        ds = load_dataset("wikiann", language, trust_remote_code=True)
+        try:
+            ds = load_dataset("wikiann", language, trust_remote_code=True)
+        except Exception as e:
+            print(f"Warning: Failed to load 'wikiann' ({e}). Attempting fallback to 'rahular/wikiann'...")
+            ds = load_dataset("rahular/wikiann", language, trust_remote_code=True)
     else: # Fallback or custom
         raise ValueError(f"Dataset {dataset_name} not supported yet in bert_loader.")
 
