@@ -48,6 +48,10 @@ def train(args):
     best_f1 = 0
     save_path = os.path.join(args.save_dir, args.dataset, args.language if args.language else 'en', f"mbert_{args.experiment}")
     os.makedirs(save_path, exist_ok=True)
+    
+    # Save initial model as fallback
+    torch.save(model.state_dict(), os.path.join(save_path, 'best_model.pt'))
+    print("Saved initial model")
 
     for epoch in range(args.epochs):
         model.train()

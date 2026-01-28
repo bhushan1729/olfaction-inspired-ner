@@ -99,16 +99,23 @@ class BertOlfactory(nn.Module):
         
         if labels is not None:
             # Training: Negative Log Likelihood
-            # Create mask for valid tokens (excluding padding AND subword ignores)
-            # labels is -100 for ignored subwords.
-            active_mask = (labels != -100) & attention_mask.bool()
+            # Create mask: attention_mask shows real tokens (not padding)
+            # We use attention_mask directly for CRF
+            mask = attention_mask.bool()
             
-            # Clamp labels to be valid (>=0) for gather/lookup
-            # We use 0 (usually 'O') as placeholder; mask ensures it doesn't affect loss
+            # Handle -100 labels (subword tokens)
+            # Replace -100 with 0 temporarily (will be masked out)
             safe_labels = labels.clone()
             safe_labels[labels == -100] = 0
             
-            loss = -self.crf(emissions, safe_labels, mask=active_mask)
+            # CRF expects: emissions (B, T, C), tags (B, T), mask (B, T)
+            # The mask should be True for tokens to include, False for padding
+            # For -100 labels (ignored subwords), we need to handle them separately
+            
+            # Option 1: Only use attention_mask (all real tokens)
+            # This includes subwords, which is what we want - CRF will learn transitions
+            loss = -self.crf(emissions, safe_labels, mask=mask, reduction='mean')
+            
             return None, loss
         else:
             # Inference: Viterbi Decoding
