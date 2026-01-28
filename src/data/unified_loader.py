@@ -39,14 +39,23 @@ def load_huggingface_dataset(dataset_name: str, config_name: Optional[str] = Non
     except ImportError:
         raise ImportError("Please install datasets library: pip install datasets")
     
-    print(f"Loading {dataset_name} dataset from HuggingFace...")
+    # Map short names to full HuggingFace dataset names
+    DATASET_MAPPING = {
+        'wikiann': 'unimelb-nlp/wikiann',
+        'masakhaner': 'masakhane/masakhaner',
+    }
+    
+    # Use full name if available, otherwise use as-is
+    full_dataset_name = DATASET_MAPPING.get(dataset_name, dataset_name)
+    
+    print(f"Loading {dataset_name} dataset from HuggingFace ({full_dataset_name})...")
     print(f"Configuration: {config_name if config_name else 'default'}")
     
     # Load dataset
     if config_name:
-        dataset = load_dataset(dataset_name, config_name, cache_dir=cache_dir)
+        dataset = load_dataset(full_dataset_name, config_name, cache_dir=cache_dir)
     else:
-        dataset = load_dataset(dataset_name, cache_dir=cache_dir)
+        dataset = load_dataset(full_dataset_name, cache_dir=cache_dir)
         
     print(f"\nData splits available: {list(dataset.keys())}")
     

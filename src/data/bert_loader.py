@@ -17,7 +17,9 @@ class BertNERDataset(Dataset):
     def __getitem__(self, idx):
         item = self.examples[idx]
         tokens = item['tokens']
-        ner_tags = item['ner_tags']
+        
+        # Handle both 'tags' and 'ner_tags' field names
+        ner_tags = item.get('ner_tags', item.get('tags', []))
 
         # Tokenize and align labels
         tokenized_inputs = self.tokenizer(
@@ -62,14 +64,14 @@ def get_bert_dataset(dataset_name, language=None, model_name='bert-base-multilin
     
     # Load Dataset
     if dataset_name == 'conll2003':
-        # Use eriktks/conll2003 - works with trust_remote_code
-        print(f"Loading CoNLL-2003 from eriktks/conll2003...")
-        ds = load_dataset("eriktks/conll2003", trust_remote_code=True)
-        tag_field = 'ner_tags'  # eriktks uses 'ner_tags'
+        # Use tner/conll2003 with trust_remote_code=True
+        print(f"Loading CoNLL-2003 from tner/conll2003...")
+        ds = load_dataset("tner/conll2003", trust_remote_code=True)
+        tag_field = 'tags'  # tner uses 'tags' not 'ner_tags'
     elif dataset_name == 'wikiann':
-        # Use wikiann dataset - unimelb-nlp version
-        print(f"Loading WikiANN ({language})...")
-        ds = load_dataset("wikiann", language)
+        # Use wikiann dataset - full name with organization
+        print(f"Loading WikiANN ({language}) from unimelb-nlp/wikiann...")
+        ds = load_dataset("unimelb-nlp/wikiann", language)
         tag_field = 'ner_tags'
     else: # Fallback or custom
         raise ValueError(f"Dataset {dataset_name} not supported yet in bert_loader.")
