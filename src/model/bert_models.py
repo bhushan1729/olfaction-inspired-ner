@@ -103,8 +103,12 @@ class BertOlfactory(nn.Module):
             # Only padding tokens have -100
             mask = attention_mask.bool()
             
+            # Replace -100 (padding) with 0 for CRF (CRF can't handle -100 as index)
+            safe_labels = labels.clone()
+            safe_labels[labels == -100] = 0
+            
             # CRF Loss
-            loss = -self.crf(emissions, labels, mask=mask)
+            loss = -self.crf(emissions, safe_labels, mask=mask)
             
             return None, loss
         else:
