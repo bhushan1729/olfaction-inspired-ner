@@ -37,20 +37,21 @@ class BertNERDataset(Dataset):
 
         for word_idx in word_ids:
             if word_idx is None:
+                # Padding tokens
                 label_ids.append(-100)
-            elif word_idx != previous_word_idx:
-                # First subtoken of the word gets the label
-                # Use label map if provided, else raw int
+            else:
+                # All subwords of a word get the same label
+                # This is important for CRF which needs continuous sequences!
                 label = ner_tags[word_idx]
-                # If label is string, map to int; if int, verify
+                
+                # If label is string, map to int; if int, use directly
                 if isinstance(label, str):
                     label_id = self.label2idx.get(label, 0) # Default to O (0)
                 else:
                     label_id = label # Already int from HF dataset
                 
                 label_ids.append(label_id)
-            else:
-                label_ids.append(-100)
+            
             previous_word_idx = word_idx
 
         return {

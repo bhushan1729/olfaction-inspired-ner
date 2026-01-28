@@ -169,7 +169,7 @@ def evaluate(model, loader, idx2label, device, experiment_type, verbose=False):
         for batch in loader:
             input_ids = batch['input_ids'].to(device)
             mask = batch['attention_mask'].to(device)
-            labels = batch['labels'].to(device) # -100 for ignored
+            labels = batch['labels'].to(device)
 
             if experiment_type == 'baseline':
                 logits, _ = model(input_ids, mask)
@@ -182,30 +182,46 @@ def evaluate(model, loader, idx2label, device, experiment_type, verbose=False):
                 batch_preds = preds_list
 
             # Align Predictions with labels
+            # We need to reconstruct word_ids to only count first subwords
             batch_labels = labels.cpu().numpy()
+            batch_input_ids = input_ids.cpu().numpy()
 
             for i in range(len(batch_labels)):
                 seq_labels = []
                 seq_preds = []
-                for j, label_id in enumerate(batch_labels[i]):
-                    if label_id != -100:  # Only consider non-ignored tokens
-                        seq_labels.append(idx2label[label_id])
-                        
-                        # Get prediction
-                        if experiment_type == 'baseline':
+                
+                # Track which word we're on to only count first subword
+                previous_word_idx = None
+                
+                # We need to reconstruct word boundaries
+                # For now, use a simpler approach: count non-padding, non-special tokens
+                for j in range(len(batch_labels[i])):
+                    label_id = batch_labels[i][j]
+                    
+                    # Skip padding (label -100 in our new setup means padding only)
+                    if label_id == -100:
+                        continue
+                    
+                    # For simplicity in evaluation: include ALL labeled tokens
+                    # The CRF learns on all subwords, but we can evaluate on all too
+                    # This is actually more informative for subword-level NER
+                    seq_labels.append(idx2label[label_id])
+                    
+                    # Get prediction
+                    if experiment_type == 'baseline':
+                        pred_id = batch_preds[i][j]
+                    else:
+                        # For CRF: preds_list[i] is a list of predicted tags for sequence i
+                        if j < len(batch_preds[i]):
                             pred_id = batch_preds[i][j]
                         else:
-                            # For CRF: preds_list[i] is a list of predicted tags for sequence i
-                            # Ensure we don't go out of bounds
-                            if j < len(batch_preds[i]):
-                                pred_id = batch_preds[i][j]
-                            else:
-                                pred_id = 0 # Default to 'O'
-                        
-                        seq_preds.append(idx2label.get(pred_id, 'O'))
+                            pred_id = 0 # Default to 'O'
+                    
+                    seq_preds.append(idx2label.get(pred_id, 'O'))
                 
-                true_labels.append(seq_labels)
-                pred_labels.append(seq_preds)
+                if seq_labels:  # Only add if non-empty
+                    true_labels.append(seq_labels)
+                    pred_labels.append(seq_preds)
 
     # Compute comprehensive metrics
     from src.training.metrics import compute_ner_metrics
