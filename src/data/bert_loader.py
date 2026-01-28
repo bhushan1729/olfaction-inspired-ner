@@ -62,11 +62,14 @@ def get_bert_dataset(dataset_name, language=None, model_name='bert-base-multilin
     
     # Load Dataset
     if dataset_name == 'conll2003':
-        ds = load_dataset("tner/conll2003")
-        tag_field = 'tags'  # tner uses 'tags' not 'ner_tags'
+        # Use eriktks/conll2003 - works with trust_remote_code
+        print(f"Loading CoNLL-2003 from eriktks/conll2003...")
+        ds = load_dataset("eriktks/conll2003", trust_remote_code=True)
+        tag_field = 'ner_tags'  # eriktks uses 'ner_tags'
     elif dataset_name == 'wikiann':
-        # Use Babelscape/wikineural as alternative (script-free, supports multiple languages)
-        ds = load_dataset("Babelscape/wikineural", language)
+        # Use wikiann dataset - unimelb-nlp version
+        print(f"Loading WikiANN ({language})...")
+        ds = load_dataset("wikiann", language)
         tag_field = 'ner_tags'
     else: # Fallback or custom
         raise ValueError(f"Dataset {dataset_name} not supported yet in bert_loader.")
@@ -86,12 +89,8 @@ def get_bert_dataset(dataset_name, language=None, model_name='bert-base-multilin
     label2idx = {tag: i for i, tag in enumerate(train_tags)}
     idx2label = {i: tag for tag, i in label2idx.items()}
     
-    # Update dataset to use consistent field name
-    def rename_tags(example):
-        example['ner_tags'] = example.get(tag_field, example.get('ner_tags', []))
-        return example
-    
-    ds = ds.map(rename_tags)
+    # Ensure consistent field name is 'ner_tags'
+    # (Most datasets already use this, but adding for robustness)
 
     train_dataset = BertNERDataset(ds['train'], tokenizer, label2idx, max_len)
     valid_dataset = BertNERDataset(ds['validation'], tokenizer, label2idx, max_len)
@@ -102,4 +101,5 @@ def get_bert_dataset(dataset_name, language=None, model_name='bert-base-multilin
     test_loader = DataLoader(test_dataset, batch_size=batch_size)
 
     return train_loader, valid_loader, test_loader, {'label2idx': label2idx, 'idx2label': idx2label}
+
 
