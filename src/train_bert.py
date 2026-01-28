@@ -130,14 +130,31 @@ def train(args):
     
     full_metrics = compute_ner_metrics(true_labels, pred_labels, verbose=False)
     
+    # Helper function to convert numpy types to Python types for JSON serialization
+    def convert_to_serializable(obj):
+        """Convert numpy types to Python types for JSON serialization."""
+        import numpy as np
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, dict):
+            return {key: convert_to_serializable(value) for key, value in obj.items()}
+        elif isinstance(obj, list):
+            return [convert_to_serializable(item) for item in obj]
+        else:
+            return obj
+    
     # Save Results
     results = {
-        'test_f1': test_f1,
-        'test_precision': full_metrics['precision'],
-        'test_recall': full_metrics['recall'],
-        'test_accuracy': full_metrics['accuracy'],
-        'best_val_f1': best_f1,
-        'per_entity_metrics': full_metrics['per_entity'],
+        'test_f1': float(test_f1),
+        'test_precision': float(full_metrics['precision']),
+        'test_recall': float(full_metrics['recall']),
+        'test_accuracy': float(full_metrics['accuracy']),
+        'best_val_f1': float(best_f1),
+        'per_entity_metrics': convert_to_serializable(full_metrics['per_entity']),
         'args': vars(args)
     }
     with open(os.path.join(save_path, 'results.json'), 'w') as f:
