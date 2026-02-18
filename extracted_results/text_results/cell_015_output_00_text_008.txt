@@ -1,3 +1,0 @@
-❌ Drive mount failed: mount failed
-⚠️  Continuing without Drive mount
-ℹ️  You can download results at the end using the zip file

@@ -1,2 +1,0 @@
-✓ Saved: visualizations/comprehensive_metrics.csv
-✓ Saved: visualizations/comprehensive_summary.json

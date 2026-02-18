@@ -1,3 +1,0 @@
-PyTorch version: 2.9.0+cu126
-CUDA available: True
-GPU: Tesla T4

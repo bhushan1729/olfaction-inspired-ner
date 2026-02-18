@@ -196,7 +196,7 @@ def run_all_experiments(args):
             print(f"{dataset_name:<30} {'FAILED':<15} {'FAILED':<15} {'N/A':<15}")
     
     print("\nNext steps:")
-    print("  1. Run: python compare_results.py --results_dir", args.save_dir)
+    print("  1. Run: python src/analysis/compare_results.py --results_dir", args.save_dir)
     print("  2. Review comparative analysis and visualizations")
     
     return results_summary

@@ -38,6 +38,8 @@ runs/
 # Analysis outputs
 analysis_results/
 comparison/
+extracted_results/images/
+extracted_results/text_results/
 
 # Jupyter
 .ipynb_checkpoints/

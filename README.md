@@ -6,10 +6,38 @@ Biologically-inspired Named Entity Recognition using olfactory coding principles
 
 This project implements an **olfaction-inspired neural architecture for NER** that models entity recognition as combinatorial activation of specialized feature detectors (receptors), aggregated through convergent pooling (glomeruli), before contextual processing.
 
-**Core Hypothesis**: Olfactory-style combinatorial coding provides useful inductive biases for NER through improved:
-- **Compositionality**: Combining multiple weak signals
-- **Interpretability**: Explicit feature specialization  
-- **Robustness**: Noise tolerance through aggregation
+**Core Hypothesis**: Olfactory-style combinatorial coding provides useful inductive biases for NER through:
+- **Compositionality** — combining multiple weak signals
+- **Interpretability** — explicit feature specialization
+- **Robustness** — noise tolerance through aggregation
+
+> We do not claim state-of-the-art performance. Our goal is to test whether olfactory-style combinatorial coding provides a useful inductive bias for NER.
+
+---
+
+## Architecture
+
+Two model families exist — **GloVe-based** and **mBERT-based** — each with a baseline and olfactory variant.
+
+### Baseline (without olfactory layers)
+
+```
+GloVe:  Embeddings → BiLSTM → CRF → NER Tags
+mBERT:  mBERT (frozen) → Linear → CRF → NER Tags
+```
+
+### Olfactory-Enhanced
+
+```
+GloVe:  Embeddings → 🧬 Receptors → Glomeruli → BiLSTM → CRF → NER Tags
+mBERT:  mBERT (frozen) → 🧬 Receptors → Glomeruli → Linear → CRF → NER Tags
+```
+
+The **only structural difference** is the insertion of **Receptor → Glomerular** layers between the embeddings and the sequence encoder.
+
+> For a detailed architecture deep-dive with tensor shapes and math, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+---
 
 ## Quick Start
 
@@ -17,145 +45,175 @@ This project implements an **olfaction-inspired neural architecture for NER** th
 
 ```bash
 # Clone repository
-git clone <repository-url>
-cd olfaction_inspired_ner
+git clone https://github.com/bhushan1729/olfaction-inspired-ner.git
+cd olfaction-inspired-ner
 
 # Install dependencies
 pip install -r requirements.txt
 
-# Download GloVe embeddings (optional but recommended)
-# Visit: https://nlp.stanford.edu/projects/glove/
-# Download glove.6B.zip and extract to data/
+# Quick test (1 epoch, ~5-10 minutes)
+python run_baseline_vs_olfactory.py --quick_test
 
-# Train baseline model
-python src/train.py --config config/experiments.yaml --experiment baseline
-
-# Train olfactory model
-python src/train.py --config config/experiments.yaml --experiment olfactory_full
-
-# Force CPU training
-python src/train.py --config config/experiments.yaml --experiment baseline --device cpu
+# Full experiments (all 6 datasets, ~2-4 hours)
+python run_baseline_vs_olfactory.py --epochs 5
 
 # Analyze results
-python -m src.analysis.visualize
+python src/analysis/compare_results.py
 ```
 
-### Google Colab
+### Google Colab (Recommended for GPU)
 
-For GPU training without local setup:
-
-1. Open `notebooks/olfaction_ner_colab.ipynb` in Google Colab
-2. Enable GPU: Runtime → Change runtime type → GPU
+1. Upload `baseline_vs_olfactory_experiments.ipynb` to [Google Colab](https://colab.research.google.com/)
+2. Enable GPU: **Runtime → Change runtime type → GPU**
 3. Run all cells
 
-Expected runtime: **2-3 hours** for all experiments
+> For detailed instructions on running experiments, Colab setup, and tuning, see [EXPERIMENT_GUIDE.md](EXPERIMENT_GUIDE.md).
 
-## Architecture
-
-```
-Tokens
-  ↓
-Embeddings (GloVe 300d)
-  ↓
-Receptor Layer (128 specialized detectors)
-  ↓
-Glomerular Layer (32 aggregated features)
-  ↓
-BiLSTM Encoder (256 hidden)
-  ↓
-CRF Decoder
-  ↓
-Entity Labels
-```
-
-## Experiments
-
-| Experiment | Description | Purpose |
-|------------|-------------|---------|
-| **baseline** | BiLSTM-CRF | Control |
-| **olfactory_full** | Full model with regularization | Main hypothesis |
-| **olfactory_no_sparse** | Without sparsity loss | Test sparsity importance |
-| **olfactory_no_glomeruli** | Without aggregation | Test convergence importance |
-
-## Results
-
-After training, check:
-- `results/<experiment>/results.json` - Metrics
-- `analysis_results/receptor_heatmap.png` - Receptor specialization
-- `analysis_results/glomeruli_tsne.png` - Feature clustering
-- `comparison/model_comparison.png` - Cross-model comparison
-
-## Project Structure
-
-```
-olfaction_inspired_ner/
-├── src/
-│   ├── data/
-│   │   └── dataset.py          # CoNLL-2003 data loading
-│   ├── model/
-│   │   ├── layers.py           # Receptor & glomerular layers
-│   │   ├── crf.py              # CRF implementation
-│   │   ├── olfactory_ner.py    # Main model
-│   │   └── baseline.py         # Baseline BiLSTM-CRF
-│   ├── training/
-│   │   └── evaluate.py         # Evaluation metrics
-│   ├── analysis/
-│   │   └── visualize.py        # Receptor analysis
-│   └── train.py                # Training script
-├── config/
-│   └── experiments.yaml        # Experiment configs
-├── notebooks/
-│   └── olfaction_ner_colab.ipynb  # Colab notebook
-├── data/                       # Downloaded data
-├── results/                    # Experiment results
-└── requirements.txt
-```
+---
 
 ## Key Components
 
-### Receptor Layer
-- **What**: Specialized micro-feature detectors (e.g., capitalization, suffixes, patterns)
-- **How**: Linear projections with ReLU for sparsity
-- **Why**: Enforces feature specialization, inspired by "one neuron-one receptor" principle
+### Receptor Layer (`src/model/layers.py`)
+- **Biological inspiration**: Olfactory receptors are highly specialized one-neuron-one-receptor detectors
+- **Implementation**: Linear projections with ReLU/GELU activation → sparse feature activations
+- **Regularization**: Diversity loss prevents redundant receptors
 
-### Glomerular Layer  
-- **What**: Convergent aggregation of receptor activations
-- **How**: Learnable weighted sum: many receptors → fewer glomeruli
-- **Why**: Denoising and abstraction, inspired by OSN convergence
+### Glomerular Layer (`src/model/layers.py`)
+- **Biological inspiration**: Multiple neurons with same receptor converge to one glomerulus
+- **Implementation**: Learnable aggregation (128 receptors → 32 glomeruli)
+- **Purpose**: Denoising and feature abstraction through convergence
 
-### Regularization
-- **Sparsity Loss** (L1): Encourages selective activation
-- **Diversity Loss**: Penalizes redundant receptors (cosine similarity)
+### CRF Decoder (`src/model/crf.py`)
+- Enforces valid BIO tag sequences
+- Training: Forward algorithm (negative log-likelihood)
+- Inference: Viterbi decoding
+
+---
+
+## Experiments
+
+### Main Comparison (mBERT-based)
+
+| Model | What's Compared |
+|-------|----------------|
+| `BertBaseline` | mBERT (frozen) → Linear → CRF |
+| `BertOlfactory` | mBERT (frozen) → Receptors → Glomeruli → Linear → CRF |
+
+Both use **frozen mBERT** and differ **only** in the olfactory layers, isolating their contribution.
+
+### GloVe-based Ablations
+
+| Experiment | Description | Purpose |
+|------------|-------------|---------|
+| `baseline` | BiLSTM-CRF | Control |
+| `olfactory_full` | Full model with regularization | Main hypothesis |
+| `olfactory_no_sparse` | Without sparsity loss | Test sparsity importance |
+| `olfactory_no_glomeruli` | Without aggregation | Test convergence importance |
+
+### Datasets
+
+| Dataset | Language | Type |
+|---------|----------|------|
+| CoNLL-2003 | English | High resource |
+| WikiANN Hindi | Hindi | Low resource |
+| WikiANN Marathi | Marathi | Low resource |
+| WikiANN Tamil | Tamil | Low resource |
+| WikiANN Bangla | Bangla | Low resource |
+| WikiANN Telugu | Telugu | Low resource |
+
+**Expectation**: Olfactory layers should help more on low-resource languages where structured inductive biases matter more.
+
+---
 
 ## Success Criteria
 
 We consider the hypothesis validated if **any** of:
+- ✅ Olfactory F1 > Baseline F1 on ≥67% of datasets (4/6)
 - ✅ Comparable F1 with fewer parameters
 - ✅ Better low-resource performance
 - ✅ Clear interpretable receptor patterns
 - ✅ Lower variance across runs
 
-**Note**: We do NOT aim to beat BERT or other SOTA models. This is an architectural exploration.
+### Key Visualizations
 
-## Analysis
+| Output | What It Shows |
+|--------|--------------|
+| `receptor_heatmap.png` | Receptor specialization by entity type |
+| `glomeruli_tsne.png` | Feature clustering by entity type |
+| `model_comparison.png` | Cross-model F1 comparison |
+| `results.json` | Detailed metrics (F1, precision, recall, per-entity) |
 
-Key visualizations in `src/analysis/visualize.py`:
+---
 
-1. **Receptor Heatmap**: Mean activations per entity type
-2. **Top Tokens per Receptor**: Interpretability check
-3. **t-SNE of Glomeruli**: Clustering by entity type
-4. **Specialization Metrics**: Sparsity, diversity, variance
+## Project Structure
+
+```
+olfaction-inspired-ner/
+├── src/
+│   ├── model/
+│   │   ├── layers.py              # Receptor & glomerular layers
+│   │   ├── olfactory_ner.py       # OlfactoryNER (GloVe-based)
+│   │   ├── baseline.py            # BaselineNER (GloVe-based)
+│   │   ├── bert_models.py         # BertBaseline & BertOlfactory (mBERT-based)
+│   │   └── crf.py                 # CRF decoder
+│   ├── data/
+│   │   ├── dataset.py             # CoNLL-2003 loading, GloVe embeddings
+│   │   ├── bert_loader.py         # HuggingFace datasets, WordPiece alignment
+│   │   └── unified_loader.py      # Unified loader for all datasets
+│   ├── training/
+│   │   └── metrics.py             # Comprehensive NER metrics
+│   ├── analysis/
+│   │   ├── visualize.py           # Receptor analysis & visualization
+│   │   ├── compare_results.py     # Results comparison & statistical tests
+│   │   ├── generate_heatmaps.py   # Receptor/glomeruli heatmap generation
+│   │   └── final_analysis.py      # Comprehensive analysis
+│   ├── utils/
+│   │   ├── colab_git.py           # Colab Git integration
+│   │   ├── save_results.py        # Results saving utilities
+│   │   └── create_marathi_notebook.py  # Marathi notebook generator
+│   ├── train.py                   # GloVe-based training script
+│   └── train_bert.py              # mBERT-based training script
+├── config/
+│   └── experiments.yaml           # Experiment configurations
+├── docs/
+│   ├── ARCHITECTURE.md            # Detailed architecture deep-dive
+│   ├── RESULTS.md                 # Experimental results
+│   ├── PARAMETER_TUNING_GUIDE.md  # Hyperparameter tuning guide
+│   └── GELU_COMPARISON.md         # ReLU vs GELU comparison
+├── notebooks/
+│   └── *.ipynb                    # Colab notebooks
+├── run_baseline_vs_olfactory.py   # Experiment orchestrator
+├── starting.md                    # Theoretical foundation (olfactory biology → NER)
+├── EXPERIMENT_GUIDE.md            # How to run experiments
+└── requirements.txt
+```
+
+---
+
+## Interpreting Results
+
+### ✅ Strong Evidence → Write Paper
+- Receptors show clear specialization (different entities activate different receptors)
+- F1 comparable to baseline (within 1 point)
+- Ablations degrade performance
+
+### ⚠️ Mixed Results → Tune & Iterate
+- Adjust `lambda_diverse` (0.01 → 0.05), try different `num_receptors` (64, 128, 256)
+- See [docs/PARAMETER_TUNING_GUIDE.md](docs/PARAMETER_TUNING_GUIDE.md)
+
+### ❌ No Advantage → Pivot
+- Re-examine hypothesis or try different architecture
+
+---
 
 ## Citation
 
-If you use this code, please cite:
-
 ```bibtex
-@misc{olfaction-inspired-ner,
-  title={Olfaction-Inspired Neural Architecture for Named Entity Recognition},
-  author={Your Name},
+@misc{olfaction-inspired-ner-2026,
+  title={Biologically-Inspired Olfactory Feature Extraction for Named Entity Recognition},
+  author={Bhushan},
   year={2026},
-  url={https://github.com/yourusername/olfaction-inspired-ner}
+  url={https://github.com/bhushan1729/olfaction-inspired-ner}
 }
 ```
 
@@ -165,15 +223,8 @@ MIT License
 
 ## Acknowledgments
 
-- Biological inspiration from Buck & Axel (1991) - olfactory receptor discovery
-- CoNLL-2003 dataset
-- GloVe embeddings (Pennington et al., 2014)
-
-## Contact
-
-For questions or collaboration: [your.email@example.com]
-
----
-
-**Status**: Minimal proof-of-concept (2-3 days) ✅  
-**Next**: Extended validation (low-resource, cross-domain, multilingual)
+- Biological inspiration: Buck & Axel (1991) — olfactory receptor discovery
+- CoNLL-2003: Tjong Kim Sang & De Meulder (2003)
+- GloVe: Pennington et al. (2014)
+- mBERT: Devlin et al. (2019)
+- BiLSTM-CRF for NER: Huang et al. (2015)

@@ -1,3 +1,0 @@
-[2K     [90m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[0m [32m43.6/43.6 kB[0m [31m4.8 MB/s[0m eta [36m0:00:00[0m
-[?25h  Preparing metadata (setup.py) ... [?25l[?25hdone
-  Building wheel for seqeval (setup.py) ... [?25l[?25hdone

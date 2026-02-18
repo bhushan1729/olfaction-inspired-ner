@@ -1,8 +1,0 @@
-Current directory: /content/olfaction-inspired-ner
-
-Directories created:
-- results/ exists: True
-- visualizations/ exists: True
-
-Contents of results/:
-['activation_gelu']
