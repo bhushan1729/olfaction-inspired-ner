@@ -243,25 +243,29 @@ class OlfactoryEncoder(nn.Module):
             self.output_dim = num_glomeruli
             self.use_mitral = False
     
-    def forward(self, x, return_receptors=False):
+    def forward(self, x, return_activations=False):
         """
         Args:
             x: [batch, seq_len, input_dim]
-            return_receptors: If True, return receptor activations for analysis
+            return_activations: If True, return receptor, glomeruli, and mitral activations for analysis
         
         Returns:
-            g: [batch, seq_len, num_glomeruli]
+            out: Final encoder output
             r (optional): [batch, seq_len, num_receptors]
+            g (optional): [batch, seq_len, num_glomeruli]
+            m (optional): [batch, seq_len, num_mitral] or None
         """
         r = self.receptors(x)
         g = self.glomeruli(r)
         
         out = g
+        m = None
         if self.use_mitral:
-            out = self.mitral(g)
+            m = self.mitral(g)
+            out = m
             
-        if return_receptors:
-            return out, r
+        if return_activations:
+            return out, r, g, m
         return out
     
     def get_diversity_loss(self):

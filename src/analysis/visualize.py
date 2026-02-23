@@ -32,6 +32,7 @@ def analyze_receptor_activations(model, data_loader, vocab_info, device, save_di
     print("Collecting receptor activations...")
     receptor_activations_by_entity = defaultdict(list)
     glomeruli_activations_by_entity = defaultdict(list)
+    mitral_activations_by_entity = defaultdict(list)
     token_activations = defaultdict(list)  # receptor -> list of (token, activation)
     
     with torch.no_grad():
@@ -39,7 +40,7 @@ def analyze_receptor_activations(model, data_loader, vocab_info, device, save_di
             sentences = sentences.to(device)
             
             # Get activations
-            receptors, glomeruli = model.get_receptor_activations(sentences)
+            receptors, glomeruli, mitral = model.get_receptor_activations(sentences)
             
             if receptors is None:
                 print("Model does not have receptors (baseline model?)")
@@ -63,6 +64,10 @@ def analyze_receptor_activations(model, data_loader, vocab_info, device, save_di
                         glomeruli_activations_by_entity[entity_type].append(
                             glomeruli[i, j].cpu().numpy()
                         )
+                        if mitral is not None:
+                            mitral_activations_by_entity[entity_type].append(
+                                mitral[i, j].cpu().numpy()
+                            )
                     
                     # Store top activations per receptor
                     receptor_acts = receptors[i, j].cpu().numpy()
@@ -139,6 +144,112 @@ def analyze_receptor_activations(model, data_loader, vocab_info, device, save_di
     plt.close()
 
     results['mean_glomeruli_activations'] = mean_glomeruli_activations
+    
+    # Glomerular Metrics (RSI and Sparsity)
+    num_glomeruli = mean_glomeruli_activations.shape[1]
+    g_rsi_scores = []
+    for g in range(num_glomeruli):
+        mus = mean_glomeruli_activations[:, g]
+        max_mu = mus.max()
+        min_mu = mus.min()
+        g_rsi = (max_mu - min_mu) / max_mu if max_mu > 1e-6 else 0.0
+        g_rsi_scores.append(g_rsi)
+        
+    results['glomeruli_avg_rsi'] = float(np.mean(g_rsi_scores))
+    
+    # Plot Glomeruli RSI
+    plt.figure(figsize=(8, 5))
+    plt.hist(g_rsi_scores, bins=20, color='orange', alpha=0.7, edgecolor='black')
+    plt.xlabel('Glomerular Selectivity Index (RSI)')
+    plt.ylabel('Count')
+    title_g_rsi = 'Distribution of Glomerular Selectivity Index'
+    if experiment_name: title_g_rsi += f'\n({experiment_name})'
+    plt.title(title_g_rsi)
+    plt.grid(axis='y', alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_dir, 'glomeruli_rsi_distribution.png'), dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    all_g_acts = []
+    for entity, acts in glomeruli_activations_by_entity.items():
+        all_g_acts.extend(acts)
+    all_g_acts = np.array(all_g_acts)
+    
+    if len(all_g_acts) > 0:
+        results['glomeruli_sparsity'] = float((all_g_acts > 0.1).mean())
+        active_g_acts = all_g_acts[all_g_acts > 0.1]
+        results['glomeruli_avg_activation'] = float(active_g_acts.mean()) if len(active_g_acts) > 0 else 0.0
+    else:
+        results['glomeruli_sparsity'] = 0.0
+        results['glomeruli_avg_activation'] = 0.0
+
+    
+    # 1c. Mitral activation heatmap
+    if len(mitral_activations_by_entity) > 0 and len(mitral_activations_by_entity[list(entity_types)[0]]) > 0:
+        print("Creating mitral activation heatmap...")
+        fig_m, ax_m = plt.subplots(figsize=(12, 6))
+        
+        mean_mitral_activations = []
+        for entity in entity_types:
+            acts = np.array(mitral_activations_by_entity[entity])
+            mean_mitral_activations.append(acts.mean(axis=0))
+        mean_mitral_activations = np.array(mean_mitral_activations)
+        
+        sns.heatmap(mean_mitral_activations, 
+                    xticklabels=range(0, mean_mitral_activations.shape[1], 10),
+                    yticklabels=entity_types,
+                    cmap='YlOrRd',
+                    cbar_kws={'label': 'Mean Activation'},
+                    ax=ax_m)
+        ax_m.set_xlabel('Mitral Index')
+        ax_m.set_ylabel('Entity Type')
+        title_m = 'Mean Mitral Activations by Entity Type'
+        if experiment_name: title_m += f'\n({experiment_name})'
+        ax_m.set_title(title_m)
+        num_mitrals = mean_mitral_activations.shape[1]
+        
+        plt.tight_layout()
+        plt.savefig(os.path.join(save_dir, 'mitral_heatmap.png'), dpi=300, bbox_inches='tight')
+        plt.close()
+        
+        results['mean_mitral_activations'] = mean_mitral_activations
+        
+        # Mitral Metrics
+        m_rsi_scores = []
+        for r in range(num_mitrals):
+            mus = mean_mitral_activations[:, r]
+            max_mu = mus.max()
+            min_mu = mus.min()
+            m_rsi = (max_mu - min_mu) / max_mu if max_mu > 1e-6 else 0.0
+            m_rsi_scores.append(m_rsi)
+            
+        results['mitral_avg_rsi'] = float(np.mean(m_rsi_scores))
+        
+        # Plot Mitral RSI
+        plt.figure(figsize=(8, 5))
+        plt.hist(m_rsi_scores, bins=20, color='teal', alpha=0.7, edgecolor='black')
+        plt.xlabel('Mitral Selectivity Index (RSI)')
+        plt.ylabel('Count')
+        title_m_rsi = 'Distribution of Mitral Selectivity Index'
+        if experiment_name: title_m_rsi += f'\n({experiment_name})'
+        plt.title(title_m_rsi)
+        plt.grid(axis='y', alpha=0.3)
+        plt.tight_layout()
+        plt.savefig(os.path.join(save_dir, 'mitral_rsi_distribution.png'), dpi=300, bbox_inches='tight')
+        plt.close()
+        
+        all_m_acts = []
+        for entity, acts in mitral_activations_by_entity.items():
+            all_m_acts.extend(acts)
+        all_m_acts = np.array(all_m_acts)
+        
+        if len(all_m_acts) > 0:
+            results['mitral_sparsity'] = float((all_m_acts > 0.1).mean())
+            active_m_acts = all_m_acts[all_m_acts > 0.1]
+            results['mitral_avg_activation'] = float(active_m_acts.mean()) if len(active_m_acts) > 0 else 0.0
+        else:
+            results['mitral_sparsity'] = 0.0
+            results['mitral_avg_activation'] = 0.0
     
     # 2. Top activating tokens per receptor
     print("Finding top activating tokens per receptor...")
@@ -287,6 +398,14 @@ def analyze_receptor_activations(model, data_loader, vocab_info, device, save_di
             'entity_specificity': results['entity_specificity'],
             'receptor_interpretations': results['receptor_interpretations']
         }
+        if 'glomeruli_sparsity' in results:
+            save_results['glomeruli_sparsity'] = results['glomeruli_sparsity']
+            save_results['glomeruli_avg_activation'] = results['glomeruli_avg_activation']
+            save_results['glomeruli_avg_rsi'] = results['glomeruli_avg_rsi']
+        if 'mitral_sparsity' in results:
+            save_results['mitral_sparsity'] = results['mitral_sparsity']
+            save_results['mitral_avg_activation'] = results['mitral_avg_activation']
+            save_results['mitral_avg_rsi'] = results['mitral_avg_rsi']
         json.dump(save_results, f, indent=2)
     
     print(f"\n✓ Analysis complete! Results saved to {save_dir}")

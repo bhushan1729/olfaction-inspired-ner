@@ -196,15 +196,16 @@ class OlfactoryNER(nn.Module):
         Returns:
             receptors: [batch, seq_len, num_receptors]
             glomeruli: [batch, seq_len, num_glomeruli]
+            mitral: [batch, seq_len, num_mitral] (or None)
         """
         with torch.no_grad():
             embeds = self.embedding(sentences)
             
             if self.use_receptors:
-                glomeruli, receptors = self.olfactory_encoder(embeds, return_receptors=True)
-                return receptors, glomeruli
+                out, receptors, glomeruli, mitral = self.olfactory_encoder(embeds, return_activations=True)
+                return receptors, glomeruli, mitral
             else:
-                return None, None
+                return None, None, None
 
 
 def create_olfactory_ner(vocab_size, num_tags, config, pretrained_embeddings=None):
