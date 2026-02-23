@@ -147,6 +147,66 @@ class GlomerularLayer(nn.Module):
         return g
 
 
+class MitralLayer(nn.Module):
+    """
+    Mitral layer - principal output neurons of the olfactory bulb.
+    
+    Biological inspiration:
+    - Receive input from a single glomerulus.
+    - Act as the principal output neurons of the olfactory bulb.
+    - Lateral inhibition via granule cells sharpens patterns.
+    
+    Implementation:
+    - Linear projection from glomeruli to mitral cells.
+    - Optional dropout/inhibition to simulate sharpening.
+    - Activation function maps to output space.
+    """
+    
+    def __init__(self, num_glomeruli: int, num_mitral: int, activation: str = 'relu'):
+        """
+        Args:
+            num_glomeruli: Number of input glomerular units
+            num_mitral: Number of output mitral units
+            activation: Activation function ('relu', 'gelu', etc.)
+        """
+        super().__init__()
+        self.num_glomeruli = num_glomeruli
+        self.num_mitral = num_mitral
+        
+        # Projection weights
+        self.W = nn.Parameter(torch.randn(num_mitral, num_glomeruli))
+        self.b = nn.Parameter(torch.zeros(num_mitral))
+        
+        nn.init.xavier_uniform_(self.W, gain=0.5)
+        
+        # Activation function selection (same as receptors)
+        activation_map = {
+            'relu': nn.ReLU(),
+            'gelu': nn.GELU(),
+            'swish': nn.SiLU(),
+            'silu': nn.SiLU(),
+            'mish': nn.Mish(),
+        }
+        
+        if activation.lower() not in activation_map:
+            raise ValueError(f"Unknown activation: {activation}. Choose from {list(activation_map.keys())}")
+        
+        self.activation = activation_map[activation.lower()]
+    
+    def forward(self, g):
+        """
+        Args:
+            g: [batch, seq_len, num_glomeruli] - glomerular activations
+        
+        Returns:
+            m: [batch, seq_len, num_mitral] - mitral activations
+        """
+        # m = gW^T + b
+        m = torch.einsum('bsg,mg->bsm', g, self.W) + self.b
+        m = self.activation(m)
+        return m
+
+
 class OlfactoryEncoder(nn.Module):
     """
     Complete olfactory-inspired encoder.
@@ -158,20 +218,30 @@ class OlfactoryEncoder(nn.Module):
         -> Output features
     """
     
-    def __init__(self, input_dim: int, num_receptors: int, num_glomeruli: int, activation: str = 'relu'):
+    def __init__(self, input_dim: int, num_receptors: int, num_glomeruli: int, 
+                 num_mitral: int = None, activation: str = 'relu', mitral_activation: str = 'relu'):
         """
         Args:
             input_dim: Input embedding dimension
             num_receptors: Number of receptor units
             num_glomeruli: Number of glomerular units
+            num_mitral: Number of mitral units (optional)
             activation: Activation function for receptors ('relu', 'gelu', 'swish', 'mish')
+            mitral_activation: Activation function for mitral cells
         """
         super().__init__()
         
         self.receptors = ReceptorLayer(input_dim, num_receptors, activation=activation)
         self.glomeruli = GlomerularLayer(num_receptors, num_glomeruli)
         
-        self.output_dim = num_glomeruli
+        if num_mitral is not None and num_mitral > 0:
+            self.mitral = MitralLayer(num_glomeruli, num_mitral, activation=mitral_activation)
+            self.output_dim = num_mitral
+            self.use_mitral = True
+        else:
+            self.mitral = None
+            self.output_dim = num_glomeruli
+            self.use_mitral = False
     
     def forward(self, x, return_receptors=False):
         """
@@ -186,9 +256,13 @@ class OlfactoryEncoder(nn.Module):
         r = self.receptors(x)
         g = self.glomeruli(r)
         
+        out = g
+        if self.use_mitral:
+            out = self.mitral(g)
+            
         if return_receptors:
-            return g, r
-        return g
+            return out, r
+        return out
     
     def get_diversity_loss(self):
         """Get receptor diversity loss."""
@@ -222,13 +296,22 @@ if __name__ == '__main__':
     print(f"Glomerular output shape: {g.shape}")
     
     # Test full encoder
-    print("\nTesting OlfactoryEncoder...")
+    print("\nTesting OlfactoryEncoder (No Mitral)...")
     encoder = OlfactoryEncoder(input_dim, num_receptors, num_glomeruli)
-    g, r = encoder(x, return_receptors=True)
+    out, r = encoder(x, return_receptors=True)
     print(f"Input shape: {x.shape}")
-    print(f"Glomerular output shape: {g.shape}")
+    print(f"Encoder output shape: {out.shape}")
     print(f"Receptor output shape: {r.shape}")
     print(f"Diversity loss: {encoder.get_diversity_loss().item():.4f}")
+    
+    # Test full encoder with mitral
+    num_mitral = 8
+    print("\nTesting OlfactoryEncoder (With Mitral)...")
+    encoder_mitral = OlfactoryEncoder(input_dim, num_receptors, num_glomeruli, num_mitral=num_mitral)
+    out_mitral, r_mitral = encoder_mitral(x, return_receptors=True)
+    print(f"Input shape: {x.shape}")
+    print(f"Encoder output shape (Mitral): {out_mitral.shape}")
+    print(f"Receptor output shape: {r_mitral.shape}")
     
     # Check sparsity
     sparsity = (r > 0).float().mean()

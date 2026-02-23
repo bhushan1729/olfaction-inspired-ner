@@ -19,8 +19,9 @@ class OlfactoryNER(nn.Module):
     1. Embedding layer (GloVe pre-trained)
     2. Receptor layer (specialized feature detectors)
     3. Glomerular layer (convergent aggregation)
-    4. BiLSTM encoder (contextual modeling)
-    5. CRF decoder (sequence constraints)
+    4. Mitral layer (optional sharpening and output mapping)
+    5. BiLSTM encoder (contextual modeling)
+    6. CRF decoder (sequence constraints)
     """
     
     def __init__(self, 
@@ -35,7 +36,10 @@ class OlfactoryNER(nn.Module):
                  pretrained_embeddings=None,
                  use_receptors: bool = True,
                  use_glomeruli: bool = True,
+                 use_mitral: bool = False,
+                 num_mitral: int = None,
                  receptor_activation: str = 'relu',
+                 mitral_activation: str = 'relu',
                  use_crf: bool = True):
         """
         Args:
@@ -50,13 +54,17 @@ class OlfactoryNER(nn.Module):
             pretrained_embeddings: Pre-trained embedding matrix (numpy array)
             use_receptors: If False, skip receptor layer (ablation)
             use_glomeruli: If False, skip glomerular layer (ablation)
+            use_mitral: If True, include mitral layer
+            num_mitral: Number of mitral units (required if use_mitral=True)
             receptor_activation: Activation function ('relu', 'gelu', 'swish', 'mish')
+            mitral_activation: Activation function for mitral layer
             use_crf: If False, skip CRF layer and use CrossEntropyLoss (ablation)
         """
         super().__init__()
         
         self.use_receptors = use_receptors
         self.use_glomeruli = use_glomeruli
+        self.use_mitral = use_mitral
         self.use_crf_layer = use_crf
         self.num_tags = num_tags
         
@@ -65,15 +73,23 @@ class OlfactoryNER(nn.Module):
         if pretrained_embeddings is not None:
             self.embedding.weight.data.copy_(torch.from_numpy(pretrained_embeddings))
         
-        # Olfactory encoder (receptors + glomeruli)
+        # Olfactory encoder (receptors + glomeruli + mitral)
         if use_receptors:
             self.olfactory_encoder = OlfactoryEncoder(
                 input_dim=embed_dim,
                 num_receptors=num_receptors,
                 num_glomeruli=num_glomeruli if use_glomeruli else num_receptors,
-                activation=receptor_activation
+                num_mitral=num_mitral if use_mitral else None,
+                activation=receptor_activation,
+                mitral_activation=mitral_activation
             )
-            lstm_input_dim = num_glomeruli if use_glomeruli else num_receptors
+            # Determine lstm input dim based on highest active layer
+            if use_mitral and num_mitral:
+                lstm_input_dim = num_mitral
+            elif use_glomeruli:
+                lstm_input_dim = num_glomeruli
+            else:
+                lstm_input_dim = num_receptors
         else:
             self.olfactory_encoder = None
             lstm_input_dim = embed_dim
@@ -216,7 +232,10 @@ def create_olfactory_ner(vocab_size, num_tags, config, pretrained_embeddings=Non
         pretrained_embeddings=pretrained_embeddings,
         use_receptors=config.get('use_receptors', True),
         use_glomeruli=config.get('use_glomeruli', True),
+        use_mitral=config.get('use_mitral', False),
+        num_mitral=config.get('num_mitral', None),
         receptor_activation=config.get('receptor_activation', 'relu'),
+        mitral_activation=config.get('mitral_activation', 'relu'),
         use_crf=config.get('use_crf', True)
     )
 
@@ -236,7 +255,18 @@ if __name__ == '__main__':
         'dropout': 0.5
     }
     
+    config_mitral = {
+        'embed_dim': 300,
+        'num_receptors': 128,
+        'num_glomeruli': 32,
+        'use_mitral': True,
+        'num_mitral': 8,
+        'lstm_hidden': 256,
+        'dropout': 0.5
+    }
+    
     model = create_olfactory_ner(vocab_size, num_tags, config)
+    model_mitral = create_olfactory_ner(vocab_size, num_tags, config_mitral)
     
     # Random input
     sentences = torch.randint(0, vocab_size, (batch_size, seq_len))
@@ -263,3 +293,10 @@ if __name__ == '__main__':
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"Total parameters: {total_params:,}")
     print(f"Trainable parameters: {trainable_params:,}")
+
+    print("\nTesting OlfactoryNER (With Mitral)...")
+    loss_mitral = model_mitral(sentences, tags, lengths)
+    preds_mitral = model_mitral(sentences, lengths=lengths)
+    print(f"Loss (Mitral): {loss_mitral.item():.4f}")
+    print(f"Predictions shape (Mitral): {preds_mitral.shape}")
+    print(f"Total parameters (Mitral): {sum(p.numel() for p in model_mitral.parameters()):,}")

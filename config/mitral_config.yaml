@@ -1,0 +1,155 @@
+datasets:
+  conll_en:
+    dataset: conll2003
+    language: null
+    glove_path: ./data/glove.6B.300d.txt
+    use_pretrained_embeddings: true
+  wikiann_mr:
+    dataset: wikiann
+    language: mr
+    glove_path: null
+    use_pretrained_embeddings: false
+  masakhaner_yo:
+    dataset: masakhaner
+    language: yor
+    glove_path: null
+    use_pretrained_embeddings: false
+  wikiann_hi:
+    dataset: wikiann
+    language: hi
+    glove_path: null
+    use_pretrained_embeddings: false
+  wikiann_ta:
+    dataset: wikiann
+    language: ta
+    glove_path: null
+    use_pretrained_embeddings: false
+  wikiann_bn:
+    dataset: wikiann
+    language: bn
+    glove_path: null
+    use_pretrained_embeddings: false
+  wikiann_te:
+    dataset: wikiann
+    language: te
+    glove_path: null
+    use_pretrained_embeddings: false
+
+common_settings:
+  embedding_dim: 300
+  dropout: 0.2
+  batch_size: 32
+  learning_rate: 0.001
+  num_epochs: 30
+  patience: 5
+  min_freq: 2
+  lambda_sparse: 0.001
+  lambda_diverse: 0.01
+  use_receptors: true
+  use_glomeruli: true
+  use_mitral: false
+  use_crf: true
+
+experiments:
+  # 1. Baseline, without any olfactory layers and all same as before
+  baseline:
+    embedding_dim: 300
+    dropout: 0.2
+    batch_size: 32
+    learning_rate: 0.001
+    num_epochs: 30
+    patience: 5
+    min_freq: 2
+    lambda_sparse: 0.001
+    lambda_diverse: 0.01
+    use_receptors: false
+    use_glomeruli: false
+    use_mitral: false
+    use_crf: true
+    model_type: baseline
+    lstm_hidden: 256
+    lstm_layers: 1
+    
+  # 2. With receptors and glomeruli baseline counts (128, 32)
+  olfactory_base:
+    embedding_dim: 300
+    dropout: 0.2
+    batch_size: 32
+    learning_rate: 0.001
+    num_epochs: 30
+    patience: 5
+    min_freq: 2
+    lambda_sparse: 0.001
+    lambda_diverse: 0.01
+    use_receptors: true
+    use_glomeruli: true
+    use_mitral: false
+    use_crf: true
+    model_type: olfactory
+    num_receptors: 128
+    num_glomeruli: 32
+    activation: gelu
+    
+  # 3. With receptors, glomeruli, and mitral baseline counts (128, 32, 8)
+  olfactory_mitral_base:
+    embedding_dim: 300
+    dropout: 0.2
+    batch_size: 32
+    learning_rate: 0.001
+    num_epochs: 30
+    patience: 5
+    min_freq: 2
+    lambda_sparse: 0.001
+    lambda_diverse: 0.01
+    use_receptors: true
+    use_glomeruli: true
+    use_mitral: true
+    use_crf: true
+    model_type: olfactory
+    num_receptors: 128
+    num_glomeruli: 32
+    num_mitral: 8
+    activation: gelu
+    mitral_activation: gelu
+    
+  # 4. With receptors and glomeruli more (256, 128)
+  olfactory_more:
+    embedding_dim: 300
+    dropout: 0.2
+    batch_size: 32
+    learning_rate: 0.001
+    num_epochs: 30
+    patience: 5
+    min_freq: 2
+    lambda_sparse: 0.001
+    lambda_diverse: 0.01
+    use_receptors: true
+    use_glomeruli: true
+    use_mitral: false
+    use_crf: true
+    model_type: olfactory
+    num_receptors: 256
+    num_glomeruli: 128
+    activation: gelu
+    
+  # 5. With receptors glomerulie and mitral more (256, 128, 64)
+  olfactory_mitral_more:
+    embedding_dim: 300
+    dropout: 0.2
+    batch_size: 32
+    learning_rate: 0.001
+    num_epochs: 30
+    patience: 5
+    min_freq: 2
+    lambda_sparse: 0.001
+    lambda_diverse: 0.01
+    use_receptors: true
+    use_glomeruli: true
+    use_mitral: true
+    use_crf: true
+    model_type: olfactory
+    num_receptors: 256
+    num_glomeruli: 128
+    num_mitral: 64
+    activation: gelu
+    mitral_activation: gelu
