@@ -49,23 +49,28 @@ cd olfaction-inspired-ner
 # Install dependencies
 pip install -r requirements.txt
 
-# Quick test (1 epoch, ~5-10 minutes)
-python run_baseline_vs_olfactory.py --quick_test
+# Run baseline (GloVe + BiLSTM + CRF)
+python src/train.py --config config/experiments.yaml --experiment baseline
 
-# Full experiments (all 6 datasets, ~2-4 hours)
-python run_baseline_vs_olfactory.py --epochs 5
+# Run olfactory model
+python src/train.py --config config/experiments.yaml --experiment olfactory_full
+
+# Run universal trainer (all datasets via universal_config.yaml)
+python src/train_universal.py --config config/universal_config.yaml --dataset conll_en --experiment activation_gelu
 
 # Analyze results
-python src/analysis/compare_results.py
+python src/analysis/compare_results.py --results_dir ./results
 ```
 
 ### Google Colab (Recommended for GPU)
 
-1. Upload `baseline_vs_olfactory_experiments.ipynb` to [Google Colab](https://colab.research.google.com/)
+1. Upload `notebooks/universal_experiments.ipynb` to [Google Colab](https://colab.research.google.com/)
 2. Enable GPU: **Runtime → Change runtime type → GPU**
 3. Run all cells
 
-> For detailed instructions on running experiments, Colab setup, and tuning, see [EXPERIMENT_GUIDE.md](EXPERIMENT_GUIDE.md).
+`universal_experiments.ipynb` covers **all experiments** across all datasets using `config/universal_config.yaml`.
+
+> For detailed instructions, see [docs/EXPERIMENT_GUIDE.md](docs/EXPERIMENT_GUIDE.md).
 
 ---
 
@@ -90,7 +95,7 @@ python src/analysis/compare_results.py
 
 ## Experiments
 
-### Ablations
+### Ablations (via `config/experiments.yaml`)
 
 | Experiment | Description | Purpose |
 |------------|-------------|---------|
@@ -99,16 +104,23 @@ python src/analysis/compare_results.py
 | `olfactory_no_sparse` | Without sparsity loss | Test sparsity importance |
 | `olfactory_no_glomeruli` | Without aggregation | Test convergence importance |
 
+### Universal Experiments (via `config/universal_config.yaml`)
+
+| Experiment | Description |
+|------------|-------------|
+| `activation_gelu` | GELU activation, 128 receptors, 32 glomeruli |
+| `more_receptors` | 256 receptors, 64 glomeruli |
+| `gelu_more_receptors` | 256 receptors + strong diversity loss (λ=0.05) |
+| `gelu_more_receptors_more_glomeruli` | 256 receptors, 128 glomeruli |
+| `olfactory_no_crf` | Olfactory layers without CRF decoder |
+
 ### Datasets
 
-| Dataset | Language | Type |
-|---------|----------|------|
-| CoNLL-2003 | English | High resource |
-| WikiANN Hindi | Hindi | Low resource |
-| WikiANN Marathi | Marathi | Low resource |
-| WikiANN Tamil | Tamil | Low resource |
-| WikiANN Bangla | Bangla | Low resource |
-| WikiANN Telugu | Telugu | Low resource |
+| Dataset | Config Key | Language | Type |
+|---------|-----------|----------|------|
+| CoNLL-2003 | `conll_en` | English | High resource |
+| WikiANN | `wikiann_hi/mr/ta/bn/te` | Hindi, Marathi, Tamil, Bangla, Telugu | Low resource |
+| MasakhaNER | `masakhaner_yo` | Yoruba | Low resource |
 
 **Expectation**: Olfactory layers should help more on low-resource languages where structured inductive biases matter more.
 
@@ -146,6 +158,8 @@ olfaction-inspired-ner/
 │   │   └── crf.py                 # CRF decoder
 │   ├── data/
 │   │   ├── dataset.py             # CoNLL-2003 loading, GloVe embeddings
+│   │   ├── dataset_marathi.py     # Marathi-specific data loading
+│   │   ├── dataset_ontonotes.py   # OntoNotes data loading
 │   │   └── unified_loader.py      # Unified loader for all datasets
 │   ├── training/
 │   │   └── metrics.py             # Comprehensive NER metrics
@@ -156,21 +170,27 @@ olfaction-inspired-ner/
 │   │   └── final_analysis.py      # Comprehensive analysis
 │   ├── utils/
 │   │   ├── colab_git.py           # Colab Git integration
-│   │   ├── save_results.py        # Results saving utilities
-│   │   └── create_marathi_notebook.py  # Marathi notebook generator
-│   └── train.py                   # GloVe-based training script
+│   │   └── save_results.py        # Results saving utilities
+│   ├── train.py                   # GloVe-based training script
+│   ├── train_universal.py         # Universal trainer (all datasets + configs)
+│   └── train_marathi.py           # Marathi-specific training script
 ├── config/
-│   └── experiments.yaml           # Experiment configurations
+│   ├── experiments.yaml           # Core experiment configurations
+│   ├── universal_config.yaml      # Universal multi-dataset config
+│   ├── mitral_config.yaml         # Mitral cell experiment config
+│   ├── tuning_experiments.yaml    # Hyperparameter tuning variants
+│   └── marathi_selected_experiments.yaml
 ├── docs/
 │   ├── ARCHITECTURE.md            # Detailed architecture deep-dive
-│   ├── RESULTS.md                 # Experimental results
+│   ├── EXPERIMENT_GUIDE.md        # How to run experiments
 │   ├── PARAMETER_TUNING_GUIDE.md  # Hyperparameter tuning guide
-│   └── GELU_COMPARISON.md         # ReLU vs GELU comparison
+│   └── starting.md                # Theoretical foundation (olfactory biology → NER)
 ├── notebooks/
-│   └── *.ipynb                    # Colab notebooks
-├── run_baseline_vs_olfactory.py   # Experiment orchestrator
-├── starting.md                    # Theoretical foundation (olfactory biology → NER)
-├── EXPERIMENT_GUIDE.md            # How to run experiments
+│   ├── comprehensive_experiments.ipynb
+│   ├── universal_experiments.ipynb
+│   ├── mitral_experiments.ipynb
+│   ├── gelu_experiment.ipynb
+│   └── olfaction_ner_colab.ipynb
 └── requirements.txt
 ```
 
@@ -185,6 +205,7 @@ olfaction-inspired-ner/
 
 ### ⚠️ Mixed Results → Tune & Iterate
 - Adjust `lambda_diverse` (0.01 → 0.05), try different `num_receptors` (64, 128, 256)
+- Use `config/universal_config.yaml` experiments: `more_receptors`, `gelu_more_receptors`
 - See [docs/PARAMETER_TUNING_GUIDE.md](docs/PARAMETER_TUNING_GUIDE.md)
 
 ### ❌ No Advantage → Pivot
