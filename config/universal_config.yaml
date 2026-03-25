@@ -9,11 +9,6 @@ datasets:
     language: mr
     glove_path: null
     use_pretrained_embeddings: false
-  masakhaner_yo:
-    dataset: masakhaner
-    language: yor
-    glove_path: null
-    use_pretrained_embeddings: false
   wikiann_hi:
     dataset: wikiann
     language: hi
