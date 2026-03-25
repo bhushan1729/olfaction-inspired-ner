@@ -95,24 +95,16 @@ python src/analysis/compare_results.py --results_dir ./results
 
 ## Experiments
 
-### Ablations (via `config/experiments.yaml`)
+### Experiments (via `config/universal_config.yaml`)
 
-| Experiment | Description | Purpose |
-|------------|-------------|---------|
-| `baseline` | BiLSTM-CRF | Control |
-| `olfactory_full` | Full model with regularization | Main hypothesis |
-| `olfactory_no_sparse` | Without sparsity loss | Test sparsity importance |
-| `olfactory_no_glomeruli` | Without aggregation | Test convergence importance |
-
-### Universal Experiments (via `config/universal_config.yaml`)
-
-| Experiment | Description |
-|------------|-------------|
-| `activation_gelu` | GELU activation, 128 receptors, 32 glomeruli |
-| `more_receptors` | 256 receptors, 64 glomeruli |
-| `gelu_more_receptors` | 256 receptors + strong diversity loss (λ=0.05) |
-| `gelu_more_receptors_more_glomeruli` | 256 receptors, 128 glomeruli |
-| `olfactory_no_crf` | Olfactory layers without CRF decoder |
+| Experiment | Model | Description |
+|------------|-------|-------------|
+| `baseline` | BiLSTM-CRF | Control — no olfactory layers |
+| `activation_gelu` | Olfactory | GELU activation, 128 receptors, 32 glomeruli |
+| `more_receptors` | Olfactory | 256 receptors, 64 glomeruli |
+| `gelu_more_receptors` | Olfactory | 256 receptors + strong diversity loss (λ=0.05) |
+| `gelu_more_receptors_more_glomeruli` | Olfactory | 256 receptors, 128 glomeruli |
+| `olfactory_no_crf` | Olfactory | Olfactory layers without CRF decoder |
 
 ### Datasets
 
@@ -120,7 +112,6 @@ python src/analysis/compare_results.py --results_dir ./results
 |---------|-----------|----------|------|
 | CoNLL-2003 | `conll_en` | English | High resource |
 | WikiANN | `wikiann_hi/mr/ta/bn/te` | Hindi, Marathi, Tamil, Bangla, Telugu | Low resource |
-| MasakhaNER | `masakhaner_yo` | Yoruba | Low resource |
 
 **Expectation**: Olfactory layers should help more on low-resource languages where structured inductive biases matter more.
 
@@ -175,11 +166,8 @@ olfaction-inspired-ner/
 │   ├── train_universal.py         # Universal trainer (all datasets + configs)
 │   └── train_marathi.py           # Marathi-specific training script
 ├── config/
-│   ├── experiments.yaml           # Core experiment configurations
-│   ├── universal_config.yaml      # Universal multi-dataset config
-│   ├── mitral_config.yaml         # Mitral cell experiment config
-│   ├── tuning_experiments.yaml    # Hyperparameter tuning variants
-│   └── marathi_selected_experiments.yaml
+│   ├── universal_config.yaml      # All experiment configurations & datasets
+│   └── mitral_config.yaml         # Mitral cell experiment config
 ├── docs/
 │   ├── ARCHITECTURE.md            # Detailed architecture deep-dive
 │   ├── EXPERIMENT_GUIDE.md        # How to run experiments
