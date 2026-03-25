@@ -20,31 +20,31 @@ Complete guide for running baseline vs olfactory NER experiments — locally, on
 
 ### Hypothesis
 
-> Does the biologically inspired olfactory feature extractor add value beyond a standard language model for NER?
+> Does the biologically inspired olfactory feature extractor add value beyond a standard BiLSTM-CRF baseline for NER?
 
 ### The Two Models
 
-**Baseline (mBERT + CRF)**:
+**Baseline (GloVe + BiLSTM + CRF)**:
 ```
-mBERT (frozen) → Dropout → Linear → CRF → NER Tags
-```
-
-**Olfactory (mBERT + Olfactory + CRF)**:
-```
-mBERT (frozen) → Receptors → Glomeruli → Linear → CRF → NER Tags
+Embeddings → BiLSTM → CRF → NER Tags
 ```
 
-Both use **frozen mBERT** and differ **only** in the olfactory layers, ensuring a fair comparison.
+**Olfactory (GloVe + Olfactory + BiLSTM + CRF)**:
+```
+Embeddings → Receptors → Glomeruli → BiLSTM → CRF → NER Tags
+```
+
+Both use the same GloVe embeddings and differ **only** in the olfactory layers, ensuring a fair comparison.
 
 ### Design Rationale
 
 | Decision | Why |
 |----------|-----|
-| **Frozen mBERT for both** | Isolates the olfactory contribution — any improvement is from the added layers, not BERT fine-tuning |
-| **No BiLSTM** | Keeps comparison clean — we test olfactory feature transformation, not BiLSTM |
+| **Same GloVe embeddings for both** | Isolates the olfactory contribution — any improvement is from the added layers, not the embeddings |
+| **BiLSTM for both** | Acts as the contextual encoder in both models |
 | **CRF for both** | Prevents attributing structured decoding gains to olfactory layers |
 
-**Claim**: "Structured, sparse, convergent representations (Olfactory) provide better features for the CRF than raw BERT embeddings" — NOT "we beat transformers."
+**Claim**: "Structured, sparse, convergent representations (Olfactory) provide better features for the CRF than raw GloVe embeddings alone" — NOT "we beat transformers."
 
 ### Datasets
 
@@ -89,16 +89,6 @@ python run_baseline_vs_olfactory.py --epochs 5 --batch_size 8 --lr 5e-5
 ### Manual Training (individual models)
 
 ```bash
-# Baseline
-python src/train_bert.py --dataset conll2003 --experiment baseline --epochs 5 --batch_size 16 --lr 2e-5
-
-# Olfactory
-python src/train_bert.py --dataset conll2003 --experiment olfactory --epochs 5 --batch_size 16 --lr 2e-5
-```
-
-### GloVe-based Experiments
-
-```bash
 # Baseline BiLSTM-CRF
 python src/train.py --config config/experiments.yaml --experiment baseline
 
@@ -125,7 +115,7 @@ python src/train.py --config config/experiments.yaml --experiment baseline --dev
 
 ### Running
 
-**Run All** (recommended): **Runtime → Run all** — runs all 12 experiments (~6-8 hours)
+**Run All** (recommended): **Runtime → Run all** — runs all experiments
 
 **Run Selected**: Run setup cells (1-5) first, then only the experiments you want:
 
@@ -170,10 +160,10 @@ Results auto-save to:
 
 ### Runtime Estimates
 
-| Setup | Per Experiment | All 12 |
-|-------|---------------|--------|
-| GPU (T4) | ~30-40 min | ~6-8 hours |
-| CPU | ~2-3 hours | Not recommended |
+| Setup | Per Experiment |
+|-------|---------------|
+| GPU (T4) | ~20-30 min |
+| CPU | ~1-2 hours |
 
 ---
 
@@ -251,8 +241,8 @@ This generates:
 results/
 ├── experiment_summary.json
 ├── conll2003/en/
-│   ├── mbert_baseline/   (best_model.pt, results.json)
-│   └── mbert_olfactory/  (best_model.pt, results.json)
+│   ├── baseline/   (best_model.pt, results.json)
+│   └── olfactory/  (best_model.pt, results.json)
 └── wikiann/
     ├── hi/  ├── mr/  ├── ta/  ├── bn/  └── te/
 ```
@@ -271,8 +261,8 @@ results/
 
 | Setting | Baseline F1 | Olfactory F1 | Improvement |
 |---------|------------|-------------|-------------|
-| CoNLL-2003 (high resource) | ~88-90% | ~89-91% | +0.5-1.5% |
-| Indic languages (low resource) | ~70-75% | ~72-77% | +1.5-3% |
+| CoNLL-2003 (high resource) | ~85-88% | ~86-89% | +0.5-1.5% |
+| Indic languages (low resource) | ~65-72% | ~67-75% | +1.5-3% |
 
 **Key finding**: Olfactory layers should help more on low-resource languages where structured inductive biases matter more.
 
@@ -296,6 +286,6 @@ results/
 
 - **Biological Inspiration**: Buck & Axel (1991) — Olfactory receptor discovery
 - **CoNLL-2003**: Tjong Kim Sang & De Meulder (2003)
-- **mBERT**: Devlin et al. (2019)
+- **GloVe**: Pennington et al. (2014)
 - **BiLSTM-CRF for NER**: Huang et al. (2015)
 - **GELU**: Hendrycks & Gimpel (2016)

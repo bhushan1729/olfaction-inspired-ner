@@ -1,6 +1,6 @@
 # Olfaction-Inspired NER — Complete Architecture Guide
 
-This document explains the **full data & model pipeline** for both the **baseline** (standard) and the **olfactory-enhanced** architectures. Two architecture families exist—**GloVe-based** and **mBERT-based**—and each has a baseline and olfactory variant.
+This document explains the **full data & model pipeline** for both the **baseline** (standard) and the **olfactory-enhanced** GloVe-based architectures.
 
 ---
 
@@ -25,16 +25,16 @@ This document explains the **full data & model pipeline** for both the **baselin
 ```mermaid
 graph LR
     subgraph Baseline
-        A1["Raw Text"] --> B1["Embedding<br/>(GloVe / mBERT)"]
-        B1 --> C1["BiLSTM / Linear"]
+        A1["Raw Text"] --> B1["GloVe Embedding"]
+        B1 --> C1["BiLSTM"]
         C1 --> D1["CRF Decoder"]
         D1 --> E1["NER Tags"]
     end
 
     subgraph Olfactory
-        A2["Raw Text"] --> B2["Embedding<br/>(GloVe / mBERT)"]
+        A2["Raw Text"] --> B2["GloVe Embedding"]
         B2 --> OLF["🧬 Receptor Layer<br/>→ Glomerular Layer"]
-        OLF --> C2["BiLSTM / Linear"]
+        OLF --> C2["BiLSTM"]
         C2 --> D2["CRF Decoder"]
         D2 --> E2["NER Tags"]
     end
@@ -53,16 +53,15 @@ The **only structural difference** between baseline and olfactory models is the 
 
 ### Input Sources
 
-| Family | Input Format | Tokenizer | Datasets |
-|--------|------------|-----------|----------|
-| **GloVe-based** | CoNLL-format `.txt` files (`word POS chunk NER-tag`) | Word-level vocabulary (`word2idx` dict) | CoNLL-2003 |
-| **mBERT-based**  | HuggingFace `datasets` library | BERT WordPiece tokenizer (`AutoTokenizer`) | CoNLL-2003, WikiANN (Hindi, Marathi, Tamil, Bangla, Telugu) |
+| Format | Tokenizer | Datasets |
+|--------|-----------|----------|
+| CoNLL-format `.txt` files (`word POS chunk NER-tag`) | Word-level vocabulary (`word2idx` dict) | CoNLL-2003, WikiANN |
 
 ---
 
 ## 3. Text → Vectors — How Words Become Numbers
 
-### Path A: GloVe Embeddings (GloVe-based models)
+### GloVe Embeddings
 
 ```
 "EU"  →  word2idx["EU"] = 42  →  Embedding(42) → [0.12, -0.34, ..., 0.07]  (300-d vector)
@@ -74,18 +73,6 @@ The **only structural difference** between baseline and olfactory models is the 
 | 2. **Look up indices** | Each word → its integer index. Unknown words → `<UNK>` index | `[batch, seq_len]` int tensor |
 | 3. **Embedding lookup** | `nn.Embedding` maps each index to a 300-d vector, initialized from GloVe (`glove.6B.300d.txt`) | `[batch, seq_len, 300]` |
 | 4. **Dropout** | Applied to embeddings for regularization (p = 0.5) | `[batch, seq_len, 300]` |
-
-### Path B: mBERT Embeddings (BERT-based models)
-
-```
-"EU"  →  WordPiece → ["EU"]  →  token_id 14872  →  mBERT → [0.42, -0.11, ..., 0.83]  (768-d vector)
-```
-
-| Step | What Happens | Output Shape |
-|------|-------------|--------------|
-| 1. **WordPiece tokenization** | mBERT tokenizer splits words into sub-word tokens. Adds `[CLS]` and `[SEP]`. Pad to `max_len=128` | `input_ids [batch, 128]`, `attention_mask [batch, 128]` |
-| 2. **Label alignment** | Each sub-word token receives the NER label of its parent word. Padding tokens get label `-100` (ignored) | `labels [batch, 128]` |
-| 3. **mBERT forward** | 12-layer Transformer encoder produces contextual embeddings. **BERT is frozen** (no gradients) to act as a pure feature extractor | `[batch, 128, 768]` |
 
 ---
 
@@ -113,26 +100,7 @@ Linear (512 → num_tags)           → [batch, seq, 9]     (emission scores)
 CRF Decoder                      → [batch, seq]          (predicted tag indices)
 ```
 
-### mBERT Baseline: `BertBaseline`
-**File:** [`bert_models.py`](file:///c:/Users/Admin/OneDrive/Desktop/olfaction-inspired-ner/src/model/bert_models.py)
 
-```
-Token IDs [batch, 128]
-  │
-  ▼
-mBERT (frozen, 12 Transformer layers)  → [batch, 128, 768]
-  │
-  ▼
-Dropout (p=0.1)                        → [batch, 128, 768]
-  │
-  ▼
-Linear (768 → num_tags)               → [batch, 128, num_tags]  (emissions)
-  │
-  ▼
-CRF Decoder                           → [batch, 128]            (predicted tags)
-```
-
-> **Key insight:** The mBERT baseline has **no BiLSTM**—BERT's self-attention already provides contextual encoding.
 
 ---
 
@@ -169,29 +137,7 @@ Linear (512 → num_tags)                  → [batch, seq, 9]
 CRF Decoder                             → [batch, seq]
 ```
 
-### mBERT + Olfactory: `BertOlfactory`
-**File:** [`bert_models.py`](file:///c:/Users/Admin/OneDrive/Desktop/olfaction-inspired-ner/src/model/bert_models.py)
 
-```
-Token IDs [batch, 128]
-  │
-  ▼
-mBERT (frozen)                            → [batch, 128, 768]
-  │
-  ▼
-🧬 Receptor Layer (768 → 128 receptors)   → [batch, 128, 128]    ← NEW
-  │
-  ▼
-🧬 Glomerular Layer (128 → 32 glomeruli)  → [batch, 128, 32]     ← NEW
-  │
-  ▼
-Linear (32 → num_tags)                    → [batch, 128, num_tags]
-  │
-  ▼
-CRF Decoder                              → [batch, 128]
-```
-
-> **Key insight:** The mBERT olfactory model has **no BiLSTM** either—the olfactory layers sit directly between frozen BERT and the CRF.
 
 ---
 
@@ -303,16 +249,7 @@ These are mapped back to string labels via `idx2label`:
 | Linear | projection | `[32, 50, 9]` | 9 NER tags |
 | CRF decode | Viterbi | `[32, 50]` | tag indices |
 
-### mBERT + Olfactory (default config)
 
-| Stage | Operation | Output Shape | Example Size |
-|-------|-----------|-------------|--------------|
-| Input tokens | WordPiece IDs | `[32, 128]` | batch=32, max_len=128 |
-| mBERT (frozen) | 12 Transformer layers | `[32, 128, 768]` | 768-d contextualized |
-| Receptor | `x·Wᵀ+b` → ReLU | `[32, 128, 128]` | 128 receptors |
-| Glomeruli | `r·Aᵀ` → ReLU | `[32, 128, 32]` | 32 glomeruli |
-| Linear | projection | `[32, 128, num_tags]` | e.g. 7 tags |
-| CRF decode | Viterbi | `[32, 128]` | tag indices |
 
 ---
 
@@ -368,13 +305,10 @@ src/model/
 ├── layers.py          # ReceptorLayer, GlomerularLayer, OlfactoryEncoder
 ├── olfactory_ner.py   # OlfactoryNER (GloVe + olfactory + BiLSTM + CRF)
 ├── baseline.py        # BaselineNER (GloVe + BiLSTM + CRF)
-├── bert_models.py     # BertBaseline (mBERT + CRF)
-│                      # BertOlfactory (mBERT + olfactory + CRF)
 └── crf.py             # CRF layer (transition scores, Viterbi decode)
 
 src/data/
 ├── dataset.py         # CoNLL-2003 loading, word vocab, GloVe embeddings
-├── bert_loader.py     # HuggingFace datasets, WordPiece alignment
 └── unified_loader.py  # Unified loader for all datasets/languages
 
 config/

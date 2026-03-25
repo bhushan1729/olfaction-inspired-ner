@@ -17,20 +17,18 @@ This project implements an **olfaction-inspired neural architecture for NER** th
 
 ## Architecture
 
-Two model families exist — **GloVe-based** and **mBERT-based** — each with a baseline and olfactory variant.
+The project uses **GloVe-based** embeddings, with a baseline and an olfactory variant.
 
 ### Baseline (without olfactory layers)
 
 ```
-GloVe:  Embeddings → BiLSTM → CRF → NER Tags
-mBERT:  mBERT (frozen) → Linear → CRF → NER Tags
+Embeddings → BiLSTM → CRF → NER Tags
 ```
 
 ### Olfactory-Enhanced
 
 ```
-GloVe:  Embeddings → 🧬 Receptors → Glomeruli → BiLSTM → CRF → NER Tags
-mBERT:  mBERT (frozen) → 🧬 Receptors → Glomeruli → Linear → CRF → NER Tags
+Embeddings → 🧬 Receptors → Glomeruli → BiLSTM → CRF → NER Tags
 ```
 
 The **only structural difference** is the insertion of **Receptor → Glomerular** layers between the embeddings and the sequence encoder.
@@ -92,16 +90,7 @@ python src/analysis/compare_results.py
 
 ## Experiments
 
-### Main Comparison (mBERT-based)
-
-| Model | What's Compared |
-|-------|----------------|
-| `BertBaseline` | mBERT (frozen) → Linear → CRF |
-| `BertOlfactory` | mBERT (frozen) → Receptors → Glomeruli → Linear → CRF |
-
-Both use **frozen mBERT** and differ **only** in the olfactory layers, isolating their contribution.
-
-### GloVe-based Ablations
+### Ablations
 
 | Experiment | Description | Purpose |
 |------------|-------------|---------|
@@ -154,11 +143,9 @@ olfaction-inspired-ner/
 │   │   ├── layers.py              # Receptor & glomerular layers
 │   │   ├── olfactory_ner.py       # OlfactoryNER (GloVe-based)
 │   │   ├── baseline.py            # BaselineNER (GloVe-based)
-│   │   ├── bert_models.py         # BertBaseline & BertOlfactory (mBERT-based)
 │   │   └── crf.py                 # CRF decoder
 │   ├── data/
 │   │   ├── dataset.py             # CoNLL-2003 loading, GloVe embeddings
-│   │   ├── bert_loader.py         # HuggingFace datasets, WordPiece alignment
 │   │   └── unified_loader.py      # Unified loader for all datasets
 │   ├── training/
 │   │   └── metrics.py             # Comprehensive NER metrics
@@ -171,8 +158,7 @@ olfaction-inspired-ner/
 │   │   ├── colab_git.py           # Colab Git integration
 │   │   ├── save_results.py        # Results saving utilities
 │   │   └── create_marathi_notebook.py  # Marathi notebook generator
-│   ├── train.py                   # GloVe-based training script
-│   └── train_bert.py              # mBERT-based training script
+│   └── train.py                   # GloVe-based training script
 ├── config/
 │   └── experiments.yaml           # Experiment configurations
 ├── docs/
@@ -226,5 +212,4 @@ MIT License
 - Biological inspiration: Buck & Axel (1991) — olfactory receptor discovery
 - CoNLL-2003: Tjong Kim Sang & De Meulder (2003)
 - GloVe: Pennington et al. (2014)
-- mBERT: Devlin et al. (2019)
 - BiLSTM-CRF for NER: Huang et al. (2015)
