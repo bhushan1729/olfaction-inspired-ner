@@ -59,7 +59,7 @@ experiments:
     model_type: baseline
     lstm_hidden: 256
     lstm_layers: 1
-  activation_gelu:
+  olfactory:
     embedding_dim: 300
     dropout: 0.2
     batch_size: 32
@@ -75,6 +75,23 @@ experiments:
     model_type: olfactory
     num_receptors: 128
     num_glomeruli: 32
+    activation: gelu
+  more_receptors:
+    embedding_dim: 300
+    dropout: 0.2
+    batch_size: 32
+    learning_rate: 0.001
+    num_epochs: 30
+    patience: 5
+    min_freq: 2
+    lambda_sparse: 0.001
+    lambda_diverse: 0.05
+    use_receptors: true
+    use_glomeruli: true
+    use_crf: true
+    model_type: olfactory
+    num_receptors: 256
+    num_glomeruli: 64
     activation: gelu
   more_glomeruli:
     embedding_dim: 300
@@ -93,75 +110,7 @@ experiments:
     num_receptors: 128
     num_glomeruli: 64
     activation: gelu
-  more_receptors:
-    embedding_dim: 300
-    dropout: 0.2
-    batch_size: 32
-    learning_rate: 0.001
-    num_epochs: 30
-    patience: 5
-    min_freq: 2
-    lambda_sparse: 0.001
-    lambda_diverse: 0.01
-    use_receptors: true
-    use_glomeruli: true
-    use_crf: true
-    model_type: olfactory
-    num_receptors: 256
-    num_glomeruli: 64
-    activation: gelu
-  gelu_more_receptors:
-    embedding_dim: 300
-    dropout: 0.2
-    batch_size: 32
-    learning_rate: 0.001
-    num_epochs: 30
-    patience: 5
-    min_freq: 2
-    lambda_sparse: 0.001
-    lambda_diverse: 0.05
-    use_receptors: true
-    use_glomeruli: true
-    use_crf: true
-    model_type: olfactory
-    num_receptors: 256
-    num_glomeruli: 64
-    activation: gelu
-  olfactory_no_crf:
-    embedding_dim: 300
-    dropout: 0.2
-    batch_size: 32
-    learning_rate: 0.001
-    num_epochs: 30
-    patience: 5
-    min_freq: 2
-    lambda_sparse: 0.001
-    lambda_diverse: 0.01
-    use_receptors: true
-    use_glomeruli: true
-    use_crf: false
-    model_type: olfactory
-    num_receptors: 128
-    num_glomeruli: 32
-    activation: gelu
-  gelu_more_glomeruli:
-    embedding_dim: 300
-    dropout: 0.2
-    batch_size: 32
-    learning_rate: 0.001
-    num_epochs: 30
-    patience: 5
-    min_freq: 2
-    lambda_sparse: 0.001
-    lambda_diverse: 0.01
-    use_receptors: true
-    use_glomeruli: true
-    use_crf: true
-    model_type: olfactory
-    num_receptors: 128
-    num_glomeruli: 64
-    activation: gelu
-  gelu_more_receptors_more_glomeruli:
+  more_receptors_more_glomeruli:
     embedding_dim: 300
     dropout: 0.2
     batch_size: 32

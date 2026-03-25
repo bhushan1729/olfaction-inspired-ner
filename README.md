@@ -97,14 +97,13 @@ python src/analysis/compare_results.py --results_dir ./results
 
 ### Experiments (via `config/universal_config.yaml`)
 
-| Experiment | Model | Description |
-|------------|-------|-------------|
-| `baseline` | BiLSTM-CRF | Control — no olfactory layers |
-| `activation_gelu` | Olfactory | GELU activation, 128 receptors, 32 glomeruli |
-| `more_receptors` | Olfactory | 256 receptors, 64 glomeruli |
-| `gelu_more_receptors` | Olfactory | 256 receptors + strong diversity loss (λ=0.05) |
-| `gelu_more_receptors_more_glomeruli` | Olfactory | 256 receptors, 128 glomeruli |
-| `olfactory_no_crf` | Olfactory | Olfactory layers without CRF decoder |
+| Experiment | Model | Receptors | Glomeruli | Notes |
+|------------|-------|-----------|-----------|-------|
+| `baseline` | BiLSTM-CRF | — | — | Control — no olfactory layers |
+| `olfactory` | Olfactory | 128 | 32 | Base olfactory configuration |
+| `more_receptors` | Olfactory | 256 | 64 | Strong diversity loss (λ=0.05) |
+| `more_glomeruli` | Olfactory | 128 | 64 | More glomeruli for better aggregation |
+| `more_receptors_more_glomeruli` | Olfactory | 256 | 128 | Largest configuration |
 
 ### Datasets
 
