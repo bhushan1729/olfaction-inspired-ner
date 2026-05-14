@@ -124,6 +124,7 @@ def main():
     parser.add_argument('--save_dir', type=str, default='results', help='Base directory to save results')
     parser.add_argument('--cache_dir', type=str, default='./data', help='Directory to cache data')
     parser.add_argument('--seed', type=int, default=42, help='Random seed')
+    parser.add_argument('--epochs', type=int, default=None, help='Override number of epochs')
     
     args = parser.parse_args()
     
@@ -135,6 +136,8 @@ def main():
     
     try:
         config = load_config(args.config, args.dataset_key, args.experiment)
+        if args.epochs is not None:
+            config['num_epochs'] = args.epochs
     except Exception as e:
         print(f"Error loading config: {e}")
         return
@@ -142,6 +145,8 @@ def main():
     print("="*80)
     print(f"Experiment: {args.experiment}")
     print(f"Dataset: {args.dataset_key}")
+    if args.epochs is not None:
+        print(f"Epochs overridden to: {args.epochs}")
     print("="*80)
     
     # Create save directory: results/{dataset}/{language}/{experiment}
