@@ -7,28 +7,28 @@ datasets:
   wikiann_mr:
     dataset: wikiann
     language: mr
-    glove_path: null
-    use_pretrained_embeddings: false
+    glove_path: ./data/cc.mr.300.vec
+    use_pretrained_embeddings: true
   wikiann_hi:
     dataset: wikiann
     language: hi
-    glove_path: null
-    use_pretrained_embeddings: false
+    glove_path: ./data/cc.hi.300.vec
+    use_pretrained_embeddings: true
   wikiann_ta:
     dataset: wikiann
     language: ta
-    glove_path: null
-    use_pretrained_embeddings: false
+    glove_path: ./data/cc.ta.300.vec
+    use_pretrained_embeddings: true
   wikiann_bn:
     dataset: wikiann
     language: bn
-    glove_path: null
-    use_pretrained_embeddings: false
+    glove_path: ./data/cc.bn.300.vec
+    use_pretrained_embeddings: true
   wikiann_te:
     dataset: wikiann
     language: te
-    glove_path: null
-    use_pretrained_embeddings: false
+    glove_path: ./data/cc.te.300.vec
+    use_pretrained_embeddings: true
 common_settings:
   embedding_dim: 300
   dropout: 0.2
@@ -126,4 +126,37 @@ experiments:
     model_type: olfactory
     num_receptors: 256
     num_glomeruli: 128
+    activation: gelu
+  receptors_only:
+    embedding_dim: 300
+    dropout: 0.2
+    batch_size: 32
+    learning_rate: 0.001
+    num_epochs: 30
+    patience: 5
+    min_freq: 2
+    lambda_sparse: 0.001
+    lambda_diverse: 0.01
+    use_receptors: true
+    use_glomeruli: false  # ABLATION: no glomeruli pooling
+    use_crf: true
+    model_type: olfactory
+    num_receptors: 128
+    activation: gelu
+  no_sparsity:
+    embedding_dim: 300
+    dropout: 0.2
+    batch_size: 32
+    learning_rate: 0.001
+    num_epochs: 30
+    patience: 5
+    min_freq: 2
+    lambda_sparse: 0.0  # ABLATION: no sparsity penalty
+    lambda_diverse: 0.0 # ABLATION: no diversity penalty
+    use_receptors: true
+    use_glomeruli: true
+    use_crf: true
+    model_type: olfactory
+    num_receptors: 128
+    num_glomeruli: 32
     activation: gelu

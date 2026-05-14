@@ -106,6 +106,20 @@ class BaselineNER(nn.Module):
         # Inference: decode
         return self.crf.decode(emissions, mask)
     
+    def get_lstm_activations(self, sentences, lengths=None):
+        """Get LSTM hidden states for analysis (e.g. RSI)."""
+        with torch.no_grad():
+            embeds = self.embedding(sentences)
+            if lengths is not None:
+                packed = nn.utils.rnn.pack_padded_sequence(
+                    embeds, lengths.cpu(), batch_first=True, enforce_sorted=False
+                )
+                lstm_out, _ = self.lstm(packed)
+                lstm_out, _ = nn.utils.rnn.pad_packed_sequence(lstm_out, batch_first=True)
+            else:
+                lstm_out, _ = self.lstm(embeds)
+            return lstm_out
+            
     def get_diversity_loss(self):
         """Dummy method for API compatibility with OlfactoryNER."""
         return torch.tensor(0.0, device=next(self.parameters()).device)

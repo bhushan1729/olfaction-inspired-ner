@@ -207,6 +207,25 @@ class OlfactoryNER(nn.Module):
             else:
                 return None, None, None
 
+    def get_lstm_activations(self, sentences, lengths=None):
+        """Get LSTM hidden states for analysis (e.g. RSI)."""
+        with torch.no_grad():
+            embeds = self.embedding(sentences)
+            if self.use_receptors:
+                features = self.olfactory_encoder(embeds)
+            else:
+                features = embeds
+                
+            if lengths is not None:
+                packed = nn.utils.rnn.pack_padded_sequence(
+                    features, lengths.cpu(), batch_first=True, enforce_sorted=False
+                )
+                lstm_out, _ = self.lstm(packed)
+                lstm_out, _ = nn.utils.rnn.pad_packed_sequence(lstm_out, batch_first=True)
+            else:
+                lstm_out, _ = self.lstm(features)
+            return lstm_out
+
 
 def create_olfactory_ner(vocab_size, num_tags, config, pretrained_embeddings=None):
     """

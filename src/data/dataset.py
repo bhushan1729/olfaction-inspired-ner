@@ -211,6 +211,10 @@ def load_glove_embeddings(glove_path: str, word2idx: Dict[str, int], embed_dim: 
     with open(glove_path, 'r', encoding='utf-8') as f:
         for line in f:
             parts = line.strip().split()
+            # Skip FastText header (num_words embed_dim)
+            if len(parts) == 2:
+                continue
+                
             word = parts[0]
             if word in word2idx:
                 embedding = np.array([float(x) for x in parts[1:]])

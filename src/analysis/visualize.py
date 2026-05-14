@@ -490,6 +490,98 @@ def compare_models(results_dirs, save_dir='./comparison'):
     print(f"\n✓ Comparison saved to {save_dir}")
 
 
+def analyze_lstm_rsi(model, data_loader, vocab_info, device, save_dir='./analysis', experiment_name=None):
+    """
+    Compute RSI for the BiLSTM hidden states.
+    This provides a baseline to compare against the Olfactory receptor/glomerular RSI.
+    """
+    model.eval()
+    os.makedirs(save_dir, exist_ok=True)
+    
+    idx2word = vocab_info['idx2word']
+    idx2label = vocab_info['idx2label']
+    
+    print("Collecting LSTM activations...")
+    lstm_activations_by_entity = defaultdict(list)
+    
+    with torch.no_grad():
+        for sentences, tags, lengths in data_loader:
+            sentences = sentences.to(device)
+            # Ensure model has get_lstm_activations
+            if not hasattr(model, 'get_lstm_activations'):
+                print("Model does not support get_lstm_activations.")
+                return None
+                
+            lstm_out = model.get_lstm_activations(sentences, lengths)
+            
+            for i in range(len(sentences)):
+                length = lengths[i].item()
+                for j in range(length):
+                    label = idx2label[tags[i, j].item()]
+                    if label != 'O':
+                        entity_type = label.split('-')[1] if '-' in label else label
+                        lstm_activations_by_entity[entity_type].append(
+                            lstm_out[i, j].cpu().numpy()
+                        )
+                        
+    entity_types = sorted(lstm_activations_by_entity.keys())
+    if not entity_types:
+        return None
+        
+    # Calculate Mean Activations
+    mean_activations = []
+    for entity in entity_types:
+        acts = np.array(lstm_activations_by_entity[entity])
+        mean_activations.append(acts.mean(axis=0))
+    
+    mean_activations = np.array(mean_activations)
+    num_units = mean_activations.shape[1]
+    
+    # Calculate RSI
+    print("Computing LSTM RSI...")
+    rsi_scores = []
+    for u in range(num_units):
+        mus = mean_activations[:, u]
+        max_mu = mus.max()
+        min_mu = mus.min()
+        
+        if max_mu > 1e-6:
+            rsi = (max_mu - min_mu) / max_mu
+        else:
+            rsi = 0.0
+        rsi_scores.append(rsi)
+        
+    avg_rsi = float(np.mean(rsi_scores))
+    print(f"Average LSTM RSI: {avg_rsi:.4f}")
+    
+    # Plot LSTM RSI Distribution
+    plt.figure(figsize=(8, 5))
+    plt.hist(rsi_scores, bins=20, color='gray', alpha=0.7, edgecolor='black')
+    plt.xlabel('LSTM Selectivity Index (RSI)')
+    plt.ylabel('Count')
+    title = 'Distribution of LSTM Selectivity Index (Baseline)'
+    if experiment_name:
+        title += f'\n({experiment_name})'
+    plt.title(title)
+    plt.grid(axis='y', alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_dir, 'lstm_rsi_distribution.png'), dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    results = {
+        'avg_rsi': avg_rsi,
+        'rsi_scores': rsi_scores,
+        'entity_types': entity_types
+    }
+    
+    import json
+    with open(os.path.join(save_dir, 'lstm_analysis.json'), 'w') as f:
+        json.dump(results, f, indent=2)
+        
+    print(f"✓ LSTM Analysis complete! Results saved to {save_dir}")
+    return results
+
+
 if __name__ == '__main__':
     print("Receptor analysis module loaded.")
     print("Use analyze_receptor_activations() to analyze a trained model.")
