@@ -160,8 +160,8 @@ def main():
     
     # The user asked for: /olfaction_inspire_ner/dataset_name/language/results/experiment
     # results_dir argument passed usually overrides base.
-    # Let's construct the full path
-    full_save_dir = os.path.join(args.save_dir, dataset_name, language, args.experiment)
+    # Let's construct the full path with the seed to prevent overwriting
+    full_save_dir = os.path.join(args.save_dir, dataset_name, language, args.experiment, f"seed_{args.seed}")
     os.makedirs(full_save_dir, exist_ok=True)
     
     print(f"Results will be saved to: {full_save_dir}")
