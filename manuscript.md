@@ -26,13 +26,13 @@ Our contributions are as follows:
 ## 2. Related Work
 
 ### 2.1 Named Entity Recognition
-NER is traditionally modeled as sequence labeling. Standard architectures employ BiLSTM-CRF (Huang et al., 2015) and transformer-based methods (Devlin et al., 2019; Lample et al., 2016). Multilingual and low-resource NER typically focuses on cross-lingual transfer or data augmentation, as high-capacity models rely heavily on large-scale supervision.
+NER is traditionally modeled as sequence labeling. Standard architectures employ BiLSTM-CRF (Huang et al., 2015) and transformer-based methods (Devlin et al., 2019; Lample et al., 2016). Multilingual and low-resource NER typically focuses on cross-lingual transfer or data augmentation, as high-capacity models rely heavily on large-scale supervision. Recent low-resource NER work has also explored cross-lingual transfer from related languages (Sunna et al., 2023) and meta-learning for few-shot scenarios (Jia et al., 2021), emphasizing that inductive bias is a key component to fast generalization from limited examples.
 
 ### 2.2 Sparse Representations
-Sparse coding, mixture-of-experts (MoE), and structured bottlenecks are widely used for feature disentanglement and capacity control. Our work shares similarities with these methods by enforcing sparse activation, but it specifically targets a combinatorial feature aggregation step loosely inspired by olfactory wiring.
+Sparse coding, mixture-of-experts (MoE), and structured bottlenecks are widely used for feature disentanglement and capacity control. Classic neuroscience research has shown that enforcing sparsity yields interpretable codes, such as sparse coding of natural images producing edge detectors (Olshausen & Field, 1996). In deep learning, Shazeer et al. (2017) introduced a sparsely-gated MoE layer that routes inputs to a few expert sub-networks, echoing our use of receptors as fixed sparse experts. Furthermore, Yang et al. (2025) proposed a Structured Information Bottleneck to preserve relevant information under compression. Our work shares similarities with these methods by enforcing sparse activation, but it specifically targets a combinatorial feature aggregation step loosely inspired by olfactory wiring.
 
 ### 2.3 Neuroscience-Inspired AI
-AI has frequently drawn from neuroscience, including attention mechanisms (cognition), predictive coding, and hippocampal memory systems. Previous olfactory computation literature has explored robustness and associative learning. We emphasize that our architecture is an abstract computational analogy to olfactory processing, not a biological simulation.
+AI has frequently drawn from neuroscience, including attention mechanisms (cognition), predictive coding, and hippocampal memory systems. Previous olfactory computation literature has explored robustness and associative learning. A striking example of artificial systems converging on biological structures is the work by Wang et al. (2021), who demonstrated that a neural network trained on an odor classification task spontaneously developed a receptor-glomeruli architecture mirroring biological olfaction. This supports the notion that sparse, combinatorial layers can emerge naturally under pressure to compress features. We emphasize that our architecture is an abstract computational analogy to olfactory processing, not a biological simulation.
 
 ---
 
@@ -152,9 +152,15 @@ We introduced an olfactory-inspired architecture for NER, utilizing a receptor-g
 - Buck, L., & Axel, R. (1991). A novel multigene family may encode odorant receptors: a molecular basis for odor recognition. *Cell*, 65(1), 175-187.
 - Devlin, J., Chang, M. W., Lee, K., & Toutanova, K. (2019). BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding. *NAACL*.
 - Huang, Z., Xu, W., & Yu, K. (2015). Bidirectional LSTM-CRF Models for Sequence Tagging. *arXiv preprint arXiv:1508.01991*.
+- Jia, et al. (2021). Meta-Learning for Few-Shot Named Entity Recognition. *MetaNLP*.
 - Lample, G., Ballesteros, M., Subramanian, S., Kawakami, K., & Dyer, C. (2016). Neural Architectures for Named Entity Recognition. *NAACL*.
+- Olshausen, B. A., & Field, D. J. (1996). Emergence of simple-cell receptive field properties by learning a sparse code for natural images. *Nature*.
 - Pennington, J., Socher, R., & Manning, C. D. (2014). GloVe: Global Vectors for Word Representation. *EMNLP*.
+- Shazeer, N., et al. (2017). Outrageously Large Neural Networks: The Sparsely-Gated Mixture-of-Experts Layer. *ICLR*.
+- Sunna, et al. (2023). Named Entity Recognition for Low-Resource Languages - Profiting from Language Families. *BSNLP*.
 - Tjong Kim Sang, E. F., & De Meulder, F. (2003). Introduction to the CoNLL-2003 Shared Task: Language-Independent Named Entity Recognition. *CoNLL*.
+- Wang, P. Y., Sun, Y., Axel, R., Abbott, L. F., & Yang, G. R. (2021). Evolving the olfactory system with machine learning. *Neuron*, 109(24), 3879-3892.
+- Yang, et al. (2025). Structured IB: Improving Information Bottleneck with Structured Feature Learning. *AAAI*.
 
 
 ## Appendix
