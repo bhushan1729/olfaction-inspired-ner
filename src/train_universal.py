@@ -162,8 +162,14 @@ def main():
     # results_dir argument passed usually overrides base.
     # Let's construct the full path with the seed to prevent overwriting
     full_save_dir = os.path.join(args.save_dir, dataset_name, language, args.experiment, f"seed_{args.seed}")
-    os.makedirs(full_save_dir, exist_ok=True)
     
+    # Check if this experiment has already been fully completed
+    results_file = os.path.join(full_save_dir, 'results.json')
+    if os.path.exists(results_file):
+        print(f"Skipping: {results_file} already exists. Experiment is fully trained!")
+        return
+
+    os.makedirs(full_save_dir, exist_ok=True)
     print(f"Results will be saved to: {full_save_dir}")
     
     # Load Data
