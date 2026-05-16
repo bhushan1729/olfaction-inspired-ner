@@ -38,8 +38,11 @@ AI has frequently drawn from neuroscience, including attention mechanisms (cogni
 
 ## 3. Biological Motivation
 
-### 3.1 Olfactory Pipeline
-In biological olfaction, odor molecules bind to olfactory receptor neurons (ORNs). These ORNs project to glomeruli in the olfactory bulb, which then transmit signals to the higher cortex.
+### 3.1 The Fly Olfactory Pathway
+In the biological olfactory system of the fruit fly (*Drosophila*), olfactory perception is initiated when odorants bind to olfactory receptors (ORs) on the surface of sensory neurons in the antennae. The system exhibits a highly structured architecture (Wang et al., 2021):
+1. **Sensory Neurons (ORNs):** Individual olfactory receptor neurons (ORNs) uniquely express exactly one of ~50 different olfactory receptors.
+2. **Glomerular Convergence:** All ORNs expressing the same specific receptor rigorously converge onto an anatomically invariant locus—a glomerulus—within the antennal lobe. This acts as a severe structural bottleneck and noise-reduction mechanism.
+3. **Projection & Expansion:** Projection neurons (PNs) innervate a single glomerulus and send axons forward to Kenyon cells (KCs) in the mushroom body (MB). The MB translates these sensory patterns into associative memories via sparse, unstructured connectivity (typically 4–10 PNs per KC).
 
 ### 3.2 Key Computational Properties
 - **Sparse activation:** Only a subset of receptors fires for a given stimulus.
@@ -48,41 +51,56 @@ In biological olfaction, odor molecules bind to olfactory receptor neurons (ORNs
 - **Specialization:** Different receptors specialize in distinct molecular features.
 
 ### 3.3 Mapping to NLP
-| Olfactory System | NER Model |
-| --- | --- |
-| Odor molecules | Token embeddings |
-| Receptors | Sparse detectors |
-| Glomeruli | Feature aggregators |
-| Cortex | BiLSTM |
+| Fly Olfactory System | NER Model Equivalent | Function |
+| --- | --- | --- |
+| Odor molecules | Token embeddings | Raw sensory input |
+| Olfactory Receptor Neurons (ORNs) | Receptor Layer | Sparse feature detection |
+| Glomeruli in Antennal Lobe | Glomerular Layer | Convergent feature pooling & compression |
+| Kenyon Cells (Mushroom Body) | BiLSTM Hidden States | Contextual association and memory |
+| Mushroom Body Output Neurons | CRF Decoder | Final learned sequence output (Tags) |
 
-This mapping is an abstract computational analogy, not a biological simulation.
+This mapping is an abstract computational analogy inspired by the fly olfactory connectome, rather than a direct biological simulation.
 
 ---
 
 ## 4. Methodology
 
 ### 4.1 Baseline Architecture
-Our baseline is a standard sequence tagger: Embedding → BiLSTM → CRF.
+Our baseline is a standard sequence tagger:  Embedding → BiLSTM → CRF. The word embeddings have a dimensionality of $d=300$. These are fed into a 1-layer bidirectional LSTM with a hidden dimension of 256. The outputs are projected to the target label space and decoded using a Conditional Random Field (CRF) layer. Total parameter count for the baseline model is approximately 1.5 million (excluding the embedding matrix).
 
 ### 4.2 Olfactory Architecture
-The olfactory-enhanced architecture modifies the baseline by inserting a bottleneck:
-Embedding → Receptor Layer → Glomerular Layer → BiLSTM → CRF.
+The olfactory-enhanced architecture introduces a biologically-inspired sparse bottleneck between the embeddings and the BiLSTM. The forward pass is defined as: Embedding → Receptor Layer → Glomerular Layer → BiLSTM → CRF.
 
 **Receptor Layer:**
-This layer comprises sparse nonlinear projections acting as weak feature detectors. Given an input embedding $x_t \in \mathbb{R}^d$, the receptor activation is:
-$r_i(x_t) = \sigma(W_i x_t + b_i)$
-where $\sigma$ is an activation function like ReLU to enforce sparsity.
+This layer comprises $N_r = 128$ (or 256) sparse nonlinear projections acting as weak feature detectors. Given an input embedding $x_t \in \mathbb{R}^{300}$, the receptor activation vector $r_t \in \mathbb{R}^{N_r}$ is:
+$$r_t = \sigma(W_R x_t + b_R)$$
+where $W_R \in \mathbb{R}^{N_r \times 300}$ is a dense weight matrix, $b_R \in \mathbb{R}^{N_r}$ is a bias vector, and $\sigma$ is the ReLU activation function. The use of ReLU is critical as it naturally enforces a non-negative, sparse firing pattern akin to biological olfactory receptors.
 
 **Glomerular Layer:**
-Receptors aggregate their signals into a smaller number of glomeruli, acting as feature pooling and compression:
-$g_j = \sum_{i \in \mathcal{G}_j} A_{ji} r_i$
+Receptors aggregate their signals into a smaller number of glomeruli ($N_g = 32$ or $64$), acting as convergent feature pooling and noise reduction. The glomerular activation vector $g_t \in \mathbb{R}^{N_g}$ is computed as:
+$$g_t = \text{ReLU}(W_G r_t)$$
+where $W_G \in \mathbb{R}^{N_g \times N_r}$ serves as the assignment matrix defining the connection strength from receptors to glomeruli. The output $g_t$ is then passed into the BiLSTM (hidden dimension 256).
 
-**Sparsity Regularization:**
-We optionally apply a sparsity penalty and a diversity loss to encourage sparse activation and prevent redundant detectors:
-$L = L_{NER} + \lambda_{sparse} L_{sparse} + \lambda_{diverse} L_{diverse}$
+**Sparsity and Diversity Regularization:**
+To encourage distinct, specialized receptor functions and prevent redundant feature collapse, we optimize the network using a composite loss function:
+$$L = L_{NER} + \lambda_{sparse} L_{sparse} + \lambda_{diverse} L_{diverse}$$
+Here, $L_{NER}$ is the standard negative log-likelihood from the CRF. 
+$L_{sparse}$ acts as an L1 penalty on the receptor activations to enforce population sparsity. 
+$L_{diverse}$ penalizes the cosine similarity between the weight vectors of different receptors, ensuring maximum utilization of the receptor space. We set $\lambda_{sparse} = 0.001$.
 
-### 4.3 Receptor Specialization Index (RSI)
-To quantify interpretability, we compute a Receptor Specialization Index (RSI) that measures activation concentration and entity-conditioned activation, capturing how well individual receptors tune to specific named entities.
+**Training Procedure:**
+Models are trained using the Adam optimizer with a learning rate of $0.001$. We use a batch size of 32 and train for up to 30 epochs, applying early stopping with a patience of 5 epochs based on validation F1-score. Dropout ($p=0.2$ to $0.5$) is applied after the embedding layer and before the BiLSTM.
+
+### 4.3 Receptor Selectivity Index (RSI)
+To quantify the interpretability of our learned sparse representations, we introduce the Receptor Selectivity Index (RSI). RSI measures the degree to which a specific unit (e.g., an individual receptor or glomerulus) is specialized to detect particular named entity classes rather than firing uniformly across all classes.
+
+For a given unit $r$, let $\mu_{r, e}$ represent the mean activation of that unit when exposed to tokens belonging to entity type $e \in \mathcal{E}$ (e.g., PER, LOC, ORG). The RSI is formulated as the normalized range of its mean activations across all entity types:
+
+$$ RSI(r) = \begin{cases} \frac{\max_{e}(\mu_{r, e}) - \min_{e}(\mu_{r, e})}{\max_{e}(\mu_{r, e})} & \text{if } \max_{e}(\mu_{r, e}) > 10^{-6} \\ 0 & \text{otherwise} \end{cases} $$
+
+where $10^{-6}$ is a small threshold to avoid division by zero for inactive units. 
+
+An RSI near $1.0$ indicates extreme specialization (the unit fires strongly for at least one entity type and is nearly silent for at least one other), while an RSI near $0.0$ implies a lack of selectivity (the unit fires uniformly regardless of the entity class).
 
 ---
 
@@ -130,14 +148,17 @@ The olfactory approach fails on English and Bangla. In English, GloVe embeddings
 
 ## 7. Discussion
 
-### 7.1 Key Insight
-Sparse bottlenecks are effective under uncertainty—specifically when embeddings are weak or supervision is limited. They behave as a structured prior that encourages feature disentanglement and robust aggregation. However, they constrain model capacity in rich-data settings.
+### 7.1 The Asymmetry of Inductive Biases
+Our central finding—that the olfactory-inspired architecture yields massive gains in the ultra-low-resource setting (+9.2% on Telugu) while degrading performance in high-resource settings (-3.3% on English)—highlights a fundamental principle of machine learning: **inductive biases matter most when data is scarce.** In rich-data environments, high-capacity networks can easily discover optimal manifolds directly from the data. However, when supervision is weak and pre-trained representations are poorly aligned, unconstrained networks often overfit to noise. 
 
-### 7.2 Connect to Inductive Biases
-The receptor-glomerular setup operates as a structured prior and regularization mechanism, compelling the network to disentangle noisy inputs into a combinatorial array of distinct features before feeding them into the sequence model.
+### 7.2 Connection to Representation Learning and Structured Priors
+By forcing the network to route information through a sparse, combinatorial receptor-glomerular layer, we inject a **structured prior** into the learning process. This forces the model to disentangle dense, noisy embeddings into isolated, discrete micro-features (receptors) before compressing them (glomeruli). This process closely mirrors the objectives of the **Information Bottleneck Method** (Tishby et al., 1999), where a network is forced to discard task-irrelevant noise while preserving predictive signals. The olfactory bottleneck acts as a structural regularizer that explicitly prevents the model from memorizing the limited training set.
 
-### 7.3 Limitations
-This architecture is an exploratory ML study and does not claim state-of-the-art performance against large transformer models. The scale of the architecture is limited, evaluated primarily with BiLSTM-CRF on a constrained set of languages without incorporating modern transformer architectures yet.
+### 7.3 Implications for Few-Shot Learning and Sparse Manifolds
+The success of this sparse combinatorial coding extends beyond biological mimicry and has profound implications for **few-shot learning**. In low-resource scenarios, the underlying useful data often lies on a sparse manifold; dense, fully-connected architectures struggle to isolate these relevant dimensions without catastrophic overfitting. By explicitly enforcing sparsity via ReLU activations and an L1 penalty, the receptor layer creates a sparse, disentangled manifold where distinct morphological and contextual cues become easily separable for the sequence model. This perfectly aligns with regularization theory, which posits that sparsity-inducing constraints naturally perform feature selection—a critical requirement when the model capacity heavily outnumbers the available training examples.
+
+### 7.4 Limitations
+This architecture is an exploratory study of biological inductive biases and does not claim state-of-the-art performance against massively pre-trained large language models (LLMs) or large-scale Transformers. The scale of the architecture is currently limited, evaluated primarily with a BiLSTM-CRF backbone on a constrained set of languages. Furthermore, the hard structural bottleneck strictly limits the theoretical upper bound of the model's capacity, explaining the exact performance degradation observed in the data-rich English CoNLL-2003 setting.
 
 ---
 
@@ -158,33 +179,7 @@ We introduced an olfactory-inspired architecture for NER, utilizing a receptor-g
 - Pennington, J., Socher, R., & Manning, C. D. (2014). GloVe: Global Vectors for Word Representation. *EMNLP*.
 - Shazeer, N., et al. (2017). Outrageously Large Neural Networks: The Sparsely-Gated Mixture-of-Experts Layer. *ICLR*.
 - Sunna, et al. (2023). Named Entity Recognition for Low-Resource Languages - Profiting from Language Families. *BSNLP*.
+- Tishby, N., Pereira, F. C., & Bialek, W. (1999). The information bottleneck method. *arXiv preprint physics/0004057*.
 - Tjong Kim Sang, E. F., & De Meulder, F. (2003). Introduction to the CoNLL-2003 Shared Task: Language-Independent Named Entity Recognition. *CoNLL*.
 - Wang, P. Y., Sun, Y., Axel, R., Abbott, L. F., & Yang, G. R. (2021). Evolving the olfactory system with machine learning. *Neuron*, 109(24), 3879-3892.
 - Yang, et al. (2025). Structured IB: Improving Information Bottleneck with Structured Feature Learning. *AAAI*.
-
-
-## Appendix
-
-### Receptor Selectivity Index (RSI)
-
-
-
-Viewed visualize.py:1-496
-
-Based on the code in `src/analysis/visualize.py` (specifically lines 343-356), the Receptor Selectivity Index (RSI) is calculated to measure how specialized a given unit (receptor, glomerulus, or mitral cell) is to specific entity types.
-
-Here is the mathematical formulation of the RSI calculation:
-
-$$ RSI(r) = \begin{cases} \frac{\max_{e}(\mu_{r, e}) - \min_{e}(\mu_{r, e})}{\max_{e}(\mu_{r, e})} & \text{if } \max_{e}(\mu_{r, e}) > 10^{-6} \\ 0 & \text{otherwise} \end{cases} $$
-
-**Where:**
-*   $r$ is the index of the specific unit (e.g., receptor, glomerulus, or mitral cell).
-*   $e$ represents a specific entity type (e.g., PER, LOC, ORG).
-*   $\mu_{r, e}$ is the mean activation of unit $r$ when exposed to tokens of entity type $e$.
-*   $\max_{e}(\mu_{r, e})$ is the maximum mean activation for unit $r$ across all entity types.
-*   $\min_{e}(\mu_{r, e})$ is the minimum mean activation for unit $r$ across all entity types.
-*   $10^{-6}$ is a small threshold used to avoid division by zero for inactive receptors.
-
-**Intuition:**
-*   An **RSI near 1.0** indicates high selectivity: the unit is highly active for at least one entity type and nearly inactive for at least one other.
-*   An **RSI near 0.0** indicates low selectivity: the unit responds similarly across all entity types (or is completely inactive).

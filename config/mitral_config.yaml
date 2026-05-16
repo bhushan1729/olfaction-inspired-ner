@@ -2,38 +2,33 @@ datasets:
   conll_en:
     dataset: conll2003
     language: null
-    glove_path: ./data/glove.6B.300d.txt
+    glove_path: ./data/cc.en.300.vec
     use_pretrained_embeddings: true
   wikiann_mr:
     dataset: wikiann
     language: mr
-    glove_path: null
-    use_pretrained_embeddings: false
-  masakhaner_yo:
-    dataset: masakhaner
-    language: yor
-    glove_path: null
-    use_pretrained_embeddings: false
+    glove_path: ./data/cc.mr.300.vec
+    use_pretrained_embeddings: true
   wikiann_hi:
     dataset: wikiann
     language: hi
-    glove_path: null
-    use_pretrained_embeddings: false
+    glove_path: ./data/cc.hi.300.vec
+    use_pretrained_embeddings: true
   wikiann_ta:
     dataset: wikiann
     language: ta
-    glove_path: null
-    use_pretrained_embeddings: false
+    glove_path: ./data/cc.ta.300.vec
+    use_pretrained_embeddings: true
   wikiann_bn:
     dataset: wikiann
     language: bn
-    glove_path: null
-    use_pretrained_embeddings: false
+    glove_path: ./data/cc.bn.300.vec
+    use_pretrained_embeddings: true
   wikiann_te:
     dataset: wikiann
     language: te
-    glove_path: null
-    use_pretrained_embeddings: false
+    glove_path: ./data/cc.te.300.vec
+    use_pretrained_embeddings: true
 
 common_settings:
   embedding_dim: 300
@@ -108,7 +103,7 @@ experiments:
     model_type: olfactory
     num_receptors: 128
     num_glomeruli: 32
-    num_mitral: 8
+    num_mitral: 512
     activation: gelu
     mitral_activation: gelu
     
