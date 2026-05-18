@@ -15,9 +15,9 @@ def aggregate_results(base_dir):
 
     # Structure is base_dir / dataset / language / experiment / seed_X / results.json
     print(f"Aggregating results from: {base_dir}\n")
-    print("="*80)
-    print(f"{'Dataset':<15} | {'Experiment':<20} | {'F1 (Mean ± SD)':<20} | {'Seeds':<5}")
-    print("="*80)
+    print("="*110)
+    print(f"{'Dataset':<15} | {'Experiment':<15} | {'F1 (Mean ± SD)':<18} | {'Precision':<18} | {'Recall':<18} | {'Seeds'}")
+    print("="*110)
 
     for dataset in sorted(os.listdir(base_dir)):
         dataset_dir = os.path.join(base_dir, dataset)
@@ -61,12 +61,16 @@ def aggregate_results(base_dir):
                 if seeds_found > 0:
                     mean_f1 = np.mean(f1_scores)
                     std_f1 = np.std(f1_scores)
+                    mean_p = np.mean(precisions) if precisions else 0
+                    std_p = np.std(precisions) if precisions else 0
+                    mean_r = np.mean(recalls) if recalls else 0
+                    std_r = np.std(recalls) if recalls else 0
                     
                     dataset_lang = f"{dataset}_{lang}" if lang != 'default' else dataset
                     
-                    print(f"{dataset_lang:<15} | {exp:<20} | {mean_f1:>6.2f} ± {std_f1:<5.2f} %      | {seeds_found:<5}")
+                    print(f"{dataset_lang:<15} | {exp:<15} | {mean_f1:>5.2f} ± {std_f1:<4.2f}% | {mean_p:>5.2f} ± {std_p:<4.2f}% | {mean_r:>5.2f} ± {std_r:<4.2f}% | {seeds_found}")
 
-    print("="*80)
+    print("="*110)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Aggregate NER results across seeds')
