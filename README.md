@@ -58,6 +58,9 @@ python src/train.py --config config/experiments.yaml --experiment olfactory_full
 # Run universal trainer (all datasets via universal_config.yaml)
 python src/train_universal.py --config config/universal_config.yaml --dataset conll_en --experiment activation_gelu
 
+# Run low-resource simulation control experiments (1k samples)
+bash run_low_resource_exp.sh
+
 # Analyze results
 python src/analysis/compare_results.py --results_dir ./results
 ```
@@ -111,6 +114,21 @@ python src/analysis/compare_results.py --results_dir ./results
 |---------|-----------|----------|------|
 | CoNLL-2003 | `conll_en` | English | High resource |
 | WikiANN | `wikiann_hi/mr/ta/bn/te` | Hindi, Marathi, Tamil, Bangla, Telugu | Low resource |
+
+### Low-Resource Simulation Control Experiments (1k Capped)
+
+To systematically isolate the impact of dataset size and directly compare higher-resource languages (English, Bengali, Tamil, etc.) with ultra-low-resource settings (like Telugu's natural 1,000 sentences), we introduced **1k-capped** variants of all datasets:
+
+| Capped Dataset | Config Key | Truncated Train Size | Purpose |
+|----------------|------------|----------------------|---------|
+| CoNLL-2003 (en) | `conll_en_1k` | 1,000 sentences | Isolate size variable on high-resource English |
+| WikiANN Marathi | `wikiann_mr_1k` | 1,000 sentences | Simulates ultra-low-resource Marathi |
+| WikiANN Hindi | `wikiann_hi_1k` | 1,000 sentences | Simulates ultra-low-resource Hindi |
+| WikiANN Tamil | `wikiann_ta_1k` | 1,000 sentences | Simulates ultra-low-resource Tamil |
+| WikiANN Bengali | `wikiann_bn_1k` | 1,000 sentences | Simulates ultra-low-resource Bengali |
+| WikiANN Telugu | `wikiann_te` | 1,000 sentences (Natural) | Inherent baseline for low-resource comparison |
+
+These experiments enforce a rigid structural control, verifying if the **olfactory bottleneck prior** consistently outperforms the standard sequence tagging baseline across all languages when training data is strictly limited to 1,000 samples.
 
 **Expectation**: Olfactory layers should help more on low-resource languages where structured inductive biases matter more.
 
@@ -308,6 +326,8 @@ olfaction-inspired-ner/
 │   ├── mitral_experiments.ipynb
 │   ├── gelu_experiment.ipynb
 │   └── olfaction_ner_colab.ipynb
+├── run_colab_experiments.sh       # Main sequentially orchestrated experiment script
+├── run_low_resource_exp.sh        # Capped low-resource simulation script (1k samples)
 └── requirements.txt
 ```
 
