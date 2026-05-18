@@ -158,16 +158,20 @@ def main():
     language = config.get('language', 'default')
     if language is None: language = 'default'
     
-    # The user asked for: /olfaction_inspire_ner/dataset_key/experiment/seed
-    # results_dir argument passed usually overrides base.
-    # Let's construct the full path with the seed to prevent overwriting
-    full_save_dir = os.path.join(args.save_dir, args.dataset_key, args.experiment, f"seed_{args.seed}")
+    # Check if this experiment has already been completed in either the old or new directory structure
+    path_old = os.path.join(args.save_dir, dataset_name, language, args.experiment, f"seed_{args.seed}")
+    path_new = os.path.join(args.save_dir, args.dataset_key, args.experiment, f"seed_{args.seed}")
     
-    # Check if this experiment has already been fully completed
-    results_file = os.path.join(full_save_dir, 'results.json')
-    if os.path.exists(results_file):
-        print(f"Skipping: {results_file} already exists. Experiment is fully trained!")
+    if os.path.exists(os.path.join(path_old, 'results.json')):
+        print(f"Skipping: results.json already exists in {path_old}. Experiment is fully trained!")
         return
+        
+    if os.path.exists(os.path.join(path_new, 'results.json')):
+        print(f"Skipping: results.json already exists in {path_new}. Experiment is fully trained!")
+        return
+
+    # If not completed, we will save to the new, cleaner directory structure
+    full_save_dir = path_new
 
     os.makedirs(full_save_dir, exist_ok=True)
     print(f"Results will be saved to: {full_save_dir}")
