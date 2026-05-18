@@ -158,10 +158,10 @@ def main():
     language = config.get('language', 'default')
     if language is None: language = 'default'
     
-    # The user asked for: /olfaction_inspire_ner/dataset_name/language/results/experiment
+    # The user asked for: /olfaction_inspire_ner/dataset_key/experiment/seed
     # results_dir argument passed usually overrides base.
     # Let's construct the full path with the seed to prevent overwriting
-    full_save_dir = os.path.join(args.save_dir, dataset_name, language, args.experiment, f"seed_{args.seed}")
+    full_save_dir = os.path.join(args.save_dir, args.dataset_key, args.experiment, f"seed_{args.seed}")
     
     # Check if this experiment has already been fully completed
     results_file = os.path.join(full_save_dir, 'results.json')
