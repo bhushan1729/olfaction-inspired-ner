@@ -113,7 +113,8 @@ def load_huggingface_dataset(dataset_name: str, config_name: Optional[str] = Non
 def get_dataset(dataset_name: str, language: Optional[str] = None, 
                 cache_dir: str = './data', 
                 batch_size: int = 32,
-                min_freq: int = 2):
+                min_freq: int = 2,
+                max_train_samples: Optional[int] = None):
     """
     Universal factory function to get data loaders for any supported dataset.
     
@@ -144,6 +145,11 @@ def get_dataset(dataset_name: str, language: Optional[str] = None,
         valid_sentences, valid_labels_str = read_conll_file(os.path.join(raw_dir, 'valid.txt'))
         test_sentences, test_labels_str = read_conll_file(os.path.join(raw_dir, 'test.txt'))
         
+        if max_train_samples is not None and len(train_sentences) > max_train_samples:
+            print(f"Limiting training data from {len(train_sentences)} to {max_train_samples} sentences.")
+            train_sentences = train_sentences[:max_train_samples]
+            train_labels_str = train_labels_str[:max_train_samples]
+            
         # Build vocab
         print("\nBuilding vocabularies...")
         word2idx = build_vocab(train_sentences, min_freq=min_freq)
@@ -189,6 +195,11 @@ def get_dataset(dataset_name: str, language: Optional[str] = None,
         valid_sentences, valid_labels = valid_data
         test_sentences, test_labels = test_data
         
+        if max_train_samples is not None and len(train_sentences) > max_train_samples:
+            print(f"Limiting training data from {len(train_sentences)} to {max_train_samples} sentences.")
+            train_sentences = train_sentences[:max_train_samples]
+            train_labels = train_labels[:max_train_samples]
+            
         # Build vocab
         print("\nBuilding vocabularies...")
         word2idx = build_vocab(train_sentences, min_freq=min_freq)

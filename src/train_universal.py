@@ -182,6 +182,7 @@ def main():
         language=config.get('language'), # Pass None if null
         cache_dir=args.cache_dir,
         batch_size=config['batch_size'],
+        max_train_samples=config.get('max_train_samples'),
         min_freq=config['min_freq']
     )
     
