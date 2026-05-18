@@ -4,16 +4,34 @@ datasets:
     language: null
     glove_path: null
     use_pretrained_embeddings: false
+  conll_en_1k:
+    dataset: conll2003
+    language: null
+    glove_path: null
+    use_pretrained_embeddings: false
+    max_train_samples: 1000
   wikiann_mr:
     dataset: wikiann
     language: mr
     glove_path: null
     use_pretrained_embeddings: false
+  wikiann_mr_1k:
+    dataset: wikiann
+    language: mr
+    glove_path: null
+    use_pretrained_embeddings: false
+    max_train_samples: 1000
   wikiann_hi:
     dataset: wikiann
     language: hi
     glove_path: null
     use_pretrained_embeddings: false
+  wikiann_hi_1k:
+    dataset: wikiann
+    language: hi
+    glove_path: null
+    use_pretrained_embeddings: false
+    max_train_samples: 1000
   wikiann_ta:
     dataset: wikiann
     language: ta

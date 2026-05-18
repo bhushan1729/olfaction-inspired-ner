@@ -5,7 +5,7 @@
 BASE_SAVE_DIR="/content/drive/My Drive/olfaction_inspired_ner/no_pretrained_embeddings"
 SEEDS=(42 123 456 789 1011)
 EXPERIMENTS=("baseline" "olfactory" "receptors_only" "no_sparsity" "more_receptors" "more_glomeruli")
-DATASETS=("wikiann_bn_1k" "wikiann_ta_1k")
+DATASETS=("conll_en_1k" "wikiann_mr_1k" "wikiann_hi_1k" "wikiann_bn_1k" "wikiann_ta_1k")
 FASTTEXT_LANGS=("en" "mr" "hi" "ta" "bn" "te")
 
 echo "========================================"
