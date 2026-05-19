@@ -60,3 +60,6 @@ tensorboard/
 Thumbs.db
 
 *.pdf
+
+pdfs_text.txt
+read_pdfs.py
