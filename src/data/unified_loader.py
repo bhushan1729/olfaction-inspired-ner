@@ -153,9 +153,12 @@ def get_dataset(dataset_name: str, language: Optional[str] = None,
         label2idx = {label: idx for idx, label in enumerate(label_list)}
 
         if max_train_samples is not None and len(train_sentences) > max_train_samples:
-            print(f"Limiting training data from {len(train_sentences)} to {max_train_samples} sentences.")
-            train_sentences = train_sentences[:max_train_samples]
-            train_labels_str = train_labels_str[:max_train_samples]
+            print(f"Limiting training data from {len(train_sentences)} to {max_train_samples} sentences (randomly sampled).")
+            import random
+            indices = list(range(len(train_sentences)))
+            sampled_indices = random.sample(indices, max_train_samples)
+            train_sentences = [train_sentences[i] for i in sampled_indices]
+            train_labels_str = [train_labels_str[i] for i in sampled_indices]
             
         # Build vocab
         print("\nBuilding vocabularies...")
@@ -196,9 +199,12 @@ def get_dataset(dataset_name: str, language: Optional[str] = None,
         test_sentences, test_labels = test_data
         
         if max_train_samples is not None and len(train_sentences) > max_train_samples:
-            print(f"Limiting training data from {len(train_sentences)} to {max_train_samples} sentences.")
-            train_sentences = train_sentences[:max_train_samples]
-            train_labels = train_labels[:max_train_samples]
+            print(f"Limiting training data from {len(train_sentences)} to {max_train_samples} sentences (randomly sampled).")
+            import random
+            indices = list(range(len(train_sentences)))
+            sampled_indices = random.sample(indices, max_train_samples)
+            train_sentences = [train_sentences[i] for i in sampled_indices]
+            train_labels = [train_labels[i] for i in sampled_indices]
             
         # Build vocab
         print("\nBuilding vocabularies...")
