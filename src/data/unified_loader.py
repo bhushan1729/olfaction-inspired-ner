@@ -145,6 +145,13 @@ def get_dataset(dataset_name: str, language: Optional[str] = None,
         valid_sentences, valid_labels_str = read_conll_file(os.path.join(raw_dir, 'valid.txt'))
         test_sentences, test_labels_str = read_conll_file(os.path.join(raw_dir, 'test.txt'))
         
+        # Build label vocab (strings to ints) using the FULL training data first to avoid KeyError during test/validation set evaluation
+        unique_labels = set()
+        for label_seq in train_labels_str:
+            unique_labels.update(label_seq)
+        label_list = sorted(unique_labels)
+        label2idx = {label: idx for idx, label in enumerate(label_list)}
+
         if max_train_samples is not None and len(train_sentences) > max_train_samples:
             print(f"Limiting training data from {len(train_sentences)} to {max_train_samples} sentences.")
             train_sentences = train_sentences[:max_train_samples]
@@ -153,13 +160,6 @@ def get_dataset(dataset_name: str, language: Optional[str] = None,
         # Build vocab
         print("\nBuilding vocabularies...")
         word2idx = build_vocab(train_sentences, min_freq=min_freq)
-        
-        # Build label vocab (strings to ints)
-        unique_labels = set()
-        for label_seq in train_labels_str:
-            unique_labels.update(label_seq)
-        label_list = sorted(unique_labels)
-        label2idx = {label: idx for idx, label in enumerate(label_list)}
         
         # Convert string labels to indices for CoNLL
         def convert_labels(label_seqs):
