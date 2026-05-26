@@ -55,13 +55,11 @@ def get_layer_activations(model, data_loader, device, layer_name='receptor'):
             embedded = model.embedding(sentences)
             
             # Get activations based on layer
-            if layer_name == 'receptor' and hasattr(model, 'receptor_layer'):
-                # Pass through receptor layer
-                activations = model.receptor_layer(embedded)  # [batch, seq_len, num_receptors]
-            elif layer_name == 'glomeruli' and hasattr(model, 'glomerular_layer'):
-                # Pass through receptor and glomeruli layers
-                receptor_out = model.receptor_layer(embedded)
-                activations = model.glomerular_layer(receptor_out)  # [batch, seq_len, num_glomeruli]
+            receptors, glomeruli, mitral = model.get_receptor_activations(sentences)
+            if layer_name == 'receptor' and receptors is not None:
+                activations = receptors
+            elif layer_name == 'glomeruli' and glomeruli is not None:
+                activations = glomeruli
             else:
                 continue
             

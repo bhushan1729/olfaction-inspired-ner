@@ -38,28 +38,32 @@ AI has frequently drawn from neuroscience, including attention mechanisms (cogni
 
 ## 3. Biological Motivation
 
-### 3.1 The Fly Olfactory Pathway
-In the biological olfactory system of the fruit fly (*Drosophila*), olfactory perception is initiated when odorants bind to olfactory receptors (ORs) on the surface of sensory neurons in the antennae. The system exhibits a highly structured architecture (Wang et al., 2021):
-1. **Sensory Neurons (ORNs):** Individual olfactory receptor neurons (ORNs) uniquely express exactly one of ~50 different olfactory receptors.
-2. **Glomerular Convergence:** All ORNs expressing the same specific receptor rigorously converge onto an anatomically invariant locus—a glomerulus—within the antennal lobe. This acts as a severe structural bottleneck and noise-reduction mechanism.
-3. **Projection & Expansion:** Projection neurons (PNs) innervate a single glomerulus and send axons forward to Kenyon cells (KCs) in the mushroom body (MB). The MB translates these sensory patterns into associative memories via sparse, unstructured connectivity (typically 4–10 PNs per KC).
+### 3.1 The Olfactory Pathway
+In biological olfactory systems (found in both vertebrates and insects), odor detection and processing follow a highly structured, conserved pathway that maps chemical stimuli to neural representations:
+1. **Sensory Neurons (OSNs/ORNs):** Olfactory sensory neurons (OSNs) express exactly one type of olfactory receptor from a large multigene family. Each receptor responds selectively to specific chemical features (epitopes) of odor molecules.
+2. **Glomerular Convergence:** All OSNs expressing the same specific receptor converge onto an anatomically distinct locus called a glomerulus (located in the antennal lobe of insects, or the olfactory bulb of vertebrates). This acts as a severe structural bottleneck, pooling many redundant inputs to filter noise and amplify signals.
+3. **Projection & Sharpening (Mitral Cells / Projection Neurons):** Glomerular activations are processed and relayed by principal output neurons—mitral/tufted cells in vertebrates, or projection neurons in insects. These cells can refine and sharpen the combinatorial activation patterns (often through lateral inhibition).
+4. **Higher Cortical Processing:** These output neurons project to higher brain regions (such as the piriform cortex in mammals or the mushroom body/Kenyon cells in insects) where sparse combinatorial codes are translated into associative memories, patterns, and behavioral decisions.
 
 ### 3.2 Key Computational Properties
-- **Sparse activation:** Only a subset of receptors fires for a given stimulus.
-- **Combinatorial coding:** Meaning emerges from patterns across multiple receptors, not single units.
-- **Robustness:** Convergence of many noisy neurons to fewer glomeruli tolerates noise.
-- **Specialization:** Different receptors specialize in distinct molecular features.
+- **Sparse Activation:** Only a small subset of olfactory receptors fires for any given odorant, leading to highly efficient energy and representation usage.
+- **Combinatorial Coding:** Meaning is encoded combinatorially; individual receptors are broad/weak feature detectors, and the identity of an odor is determined by the specific combination of activated receptors rather than a single "labeled line."
+- **Robustness and Noise Tolerance:** The convergent pooling of thousands of sensory neurons into a small number of glomeruli averages out stochastic noise, allowing the system to detect weak signals in complex backgrounds.
+- **Emergent Specialization:** Different receptors develop sensitivity to distinct molecular features, establishing a distributed feature extraction system.
 
 ### 3.3 Mapping to NLP
-| Fly Olfactory System | NER Model Equivalent | Function |
-| --- | --- | --- |
-| Odor molecules | Token embeddings | Raw sensory input |
-| Olfactory Receptor Neurons (ORNs) | Receptor Layer | Sparse feature detection |
-| Glomeruli in Antennal Lobe | Glomerular Layer | Convergent feature pooling & compression |
-| Kenyon Cells (Mushroom Body) | BiLSTM Hidden States | Contextual association and memory |
-| Mushroom Body Output Neurons | CRF Decoder | Final learned sequence output (Tags) |
+This biological architecture provides an intuitive blueprint for sequence labeling tasks like Named Entity Recognition:
 
-This mapping is an abstract computational analogy inspired by the fly olfactory connectome, rather than a direct biological simulation.
+| Biological Olfactory System | NLP/NER Model Equivalent | Function |
+| --- | --- | --- |
+| Odor molecules / Chemical stimuli | Token embeddings | Raw sensory input |
+| Olfactory Sensory Neurons (OSNs) | Receptor Layer | Sparse, localized feature detection |
+| Glomeruli (Olfactory Bulb / Antennal Lobe) | Glomerular Layer | Convergent feature pooling & noise reduction |
+| Mitral Cells / Projection Neurons | Mitral Layer (Optional) | Output projection & feature sharpening |
+| Olfactory Cortex / Mushroom Body | BiLSTM Encoder | Contextual sequence encoding |
+| Higher Behavioral Output | CRF Decoder | Sequence decoding and tag assignment |
+
+This mapping is an abstract computational analogy inspired by biological olfactory wiring rather than a direct physiological simulation.
 
 ---
 
