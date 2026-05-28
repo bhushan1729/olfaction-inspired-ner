@@ -32,104 +32,192 @@ from src.training.metrics import (
 def load_experiment_results(results_dir: str) -> Dict:
     """
     Load all experiment results from directory.
-    
-    Args:
-        results_dir: Directory containing experiment results
-    
+
+    Supports two layouts automatically:
+      1. Summary file:  <results_dir>/experiment_summary.json
+      2. Flat layout:   <results_dir>/<dataset>_<exptype>/<seed>/results.json
+         where <exptype> is one of: baseline, olfactory, receptors_only,
+         no_sparsity, more_receptors, more_glomeruli, ...
+
     Returns:
-        Dictionary mapping dataset -> experiment_type -> metrics
+        Dictionary mapping dataset -> experiment_type -> averaged metrics
     """
     results_dir = Path(results_dir)
     all_results = {}
-    
-    # Load experiment summary if exists
+
+    # ── 1. Try summary file first ──────────────────────────────────────
     summary_path = results_dir / 'experiment_summary.json'
     if summary_path.exists():
         with open(summary_path) as f:
             summary = json.load(f)
-        
+
         for dataset_name, exp_data in summary['experiments'].items():
             all_results[dataset_name] = {}
-            
-            # Load baseline
+
             if exp_data['baseline']['results_path']:
                 baseline_path = Path(exp_data['baseline']['results_path'])
                 if baseline_path.exists():
                     with open(baseline_path) as f:
                         all_results[dataset_name]['baseline'] = json.load(f)
-            
-            # Load olfactory
+
             if exp_data['olfactory']['results_path']:
                 olfactory_path = Path(exp_data['olfactory']['results_path'])
                 if olfactory_path.exists():
                     with open(olfactory_path) as f:
                         all_results[dataset_name]['olfactory'] = json.load(f)
-    else:
-        # Manual discovery
-        print("No experiment summary found. Scanning directory...")
-        for dataset_dir in results_dir.iterdir():
-            if not dataset_dir.is_dir():
-                continue
-            
-            for lang_dir in dataset_dir.iterdir():
+
+        return all_results
+
+    # ── 2. Manual discovery ────────────────────────────────────────────
+    print("No experiment summary found. Scanning directory...")
+
+    # Keywords that identify experiment types (in the folder name)
+    # The LAST matching keyword in the folder name is used as exp_type.
+    EXP_TYPE_KEYWORDS = [
+        'baseline', 'olfactory', 'receptors_only', 'no_sparsity',
+        'more_receptors', 'more_glomeruli',
+    ]
+
+    # Collect raw results: raw[dataset_key][exp_type] = [list of metric dicts]
+    raw: Dict[str, Dict[str, list]] = {}
+
+    for exp_dir in sorted(results_dir.iterdir()):
+        if not exp_dir.is_dir():
+            continue
+
+        # Identify exp_type from the directory name
+        dir_name = exp_dir.name  # e.g. "conll_en_1k_baseline" or "wikiann_mr_1k_olfactory"
+        exp_type = None
+        dataset_key = dir_name  # fallback
+
+        for kw in EXP_TYPE_KEYWORDS:
+            if dir_name.endswith(f'_{kw}'):
+                exp_type = kw
+                # Strip the suffix to get the dataset key
+                dataset_key = dir_name[: -(len(kw) + 1)]  # remove trailing "_<kw>"
+                break
+
+        if exp_type is None:
+            # Can't identify exp_type from name; check one level deeper
+            # (handles <dataset>/<lang>/<exptype>/results.json legacy layout)
+            for lang_dir in exp_dir.iterdir():
                 if not lang_dir.is_dir():
                     continue
-                
-                dataset_key = f"{dataset_dir.name}_{lang_dir.name}"
-                all_results[dataset_key] = {}
-                
-                # Look for baseline and olfactory results under multiple naming conventions
-                for exp_type in ['baseline', 'olfactory']:
-                    # Try several common subdirectory names
-                    candidate_dirs = [
-                        lang_dir / f"mbert_{exp_type}",
-                        lang_dir / exp_type,
-                        lang_dir / f"{exp_type}_mbert",
-                    ]
-                    for exp_dir in candidate_dirs:
-                        results_file = exp_dir / 'results.json'
-                        if results_file.exists():
-                            with open(results_file) as f:
-                                all_results[dataset_key][exp_type] = json.load(f)
-                            break  # stop at first match
-                
-                # Diagnostic: show what was found
-                found = list(all_results[dataset_key].keys())
-                if found:
-                    print(f"  [{dataset_key}] found: {found}")
+                nested_key = f"{dir_name}_{lang_dir.name}"
+                nested_results = {}
+                for etype in ['baseline', 'olfactory']:
+                    for candidate in [f'mbert_{etype}', etype, f'{etype}_mbert']:
+                        rf = lang_dir / candidate / 'results.json'
+                        if rf.exists():
+                            with open(rf) as f:
+                                nested_results[etype] = json.load(f)
+                            break
+                if nested_results:
+                    all_results[nested_key] = nested_results
+                    print(f"  [{nested_key}] found (nested): {list(nested_results.keys())}")
                 else:
-                    # List actual subdirs to help diagnose naming mismatches
                     subdirs = [d.name for d in lang_dir.iterdir() if d.is_dir()]
-                    print(f"  [{dataset_key}] ⚠ no results found. Subdirs: {subdirs}")
-    
+                    print(f"  [{nested_key}] ⚠ no results found. Subdirs: {subdirs}")
+            continue
+
+        # exp_type identified — scan seed subdirs for results.json
+        seed_metrics = []
+        for seed_dir in sorted(exp_dir.iterdir()):
+            if not seed_dir.is_dir():
+                continue
+            results_file = seed_dir / 'results.json'
+            if results_file.exists():
+                with open(results_file) as f:
+                    seed_metrics.append(json.load(f))
+
+        if not seed_metrics:
+            # Maybe results.json is directly in exp_dir (no seed level)
+            results_file = exp_dir / 'results.json'
+            if results_file.exists():
+                with open(results_file) as f:
+                    seed_metrics.append(json.load(f))
+
+        if seed_metrics:
+            raw.setdefault(dataset_key, {})[exp_type] = seed_metrics
+            print(f"  [{dataset_key}] exp_type={exp_type} → {len(seed_metrics)} seed run(s)")
+        else:
+            subdirs = [d.name for d in exp_dir.iterdir() if d.is_dir()]
+            print(f"  [{dir_name}] ⚠ no results.json found. Subdirs: {subdirs}")
+
+    # ── Average across seeds ───────────────────────────────────────────
+    def _avg(metrics_list: list) -> dict:
+        """Average numeric values across a list of metric dicts."""
+        if len(metrics_list) == 1:
+            return metrics_list[0]
+        keys = metrics_list[0].keys()
+        averaged = {}
+        for k in keys:
+            vals = [m[k] for m in metrics_list if isinstance(m.get(k), (int, float))]
+            if vals:
+                averaged[k] = sum(vals) / len(vals)
+            else:
+                averaged[k] = metrics_list[0].get(k)
+        return averaged
+
+    for dataset_key, exp_map in raw.items():
+        all_results[dataset_key] = {
+            exp_type: _avg(metrics_list)
+            for exp_type, metrics_list in exp_map.items()
+        }
+
     return all_results
+
+
+def _get_metrics(result: dict) -> dict:
+    """
+    Extract F1 / precision / recall from a result dict.
+
+    Handles two formats written by different training scripts:
+      - Nested:  result['test']['f1'], result['test']['precision'], result['test']['recall']
+                 (written by train_universal.py)
+      - Flat:    result['test_f1'], result['test_precision'], result['test_recall']
+                 (written by older train.py / train_marathi.py)
+    """
+    if 'test' in result and isinstance(result['test'], dict):
+        t = result['test']
+        return {
+            'f1':        t.get('f1',        t.get('test_f1',        0.0)),
+            'precision': t.get('precision', t.get('test_precision', 0.0)),
+            'recall':    t.get('recall',    t.get('test_recall',    0.0)),
+        }
+    # Flat format
+    return {
+        'f1':        result.get('test_f1',        result.get('f1',        0.0)),
+        'precision': result.get('test_precision', result.get('precision', 0.0)),
+        'recall':    result.get('test_recall',    result.get('recall',    0.0)),
+    }
 
 
 def create_comparison_table(results: Dict) -> pd.DataFrame:
     """Create comparison table for all datasets."""
     data = []
-    
+
     for dataset_name, exp_results in results.items():
         if 'baseline' not in exp_results or 'olfactory' not in exp_results:
             continue
-        
-        baseline = exp_results['baseline']
-        olfactory = exp_results['olfactory']
-        
+
+        b = _get_metrics(exp_results['baseline'])
+        o = _get_metrics(exp_results['olfactory'])
+
         row = {
-            'Dataset': dataset_name,
-            'Baseline F1': baseline.get('test_f1', 0.0),
-            'Baseline Precision': baseline.get('test_precision', 0.0),
-            'Baseline Recall': baseline.get('test_recall', 0.0),
-            'Olfactory F1': olfactory.get('test_f1', 0.0),
-            'Olfactory Precision': olfactory.get('test_precision', 0.0),
-            'Olfactory Recall': olfactory.get('test_recall', 0.0),
-            'F1 Improvement': olfactory.get('test_f1', 0.0) - baseline.get('test_f1', 0.0),
-            'Precision Improvement': olfactory.get('test_precision', 0.0) - baseline.get('test_precision', 0.0),
-            'Recall Improvement': olfactory.get('test_recall', 0.0) - baseline.get('test_recall', 0.0),
+            'Dataset':              dataset_name,
+            'Baseline F1':          b['f1'],
+            'Baseline Precision':   b['precision'],
+            'Baseline Recall':      b['recall'],
+            'Olfactory F1':         o['f1'],
+            'Olfactory Precision':  o['precision'],
+            'Olfactory Recall':     o['recall'],
+            'F1 Improvement':          o['f1']        - b['f1'],
+            'Precision Improvement':   o['precision'] - b['precision'],
+            'Recall Improvement':      o['recall']    - b['recall'],
         }
         data.append(row)
-    
+
     return pd.DataFrame(data)
 
 
