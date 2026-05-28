@@ -153,45 +153,80 @@ def plot_heatmap(activations, entity_types, save_path, title, layer_name):
     print(f"✓ Saved heatmap: {save_path}")
 
 
-def generate_heatmaps_for_experiment(experiment_name, model_path, config, vocab_info, 
+def generate_heatmaps_for_experiment(experiment_name, model_path, config, vocab_info,
                                      test_loader, device, output_dir):
     """Generate heatmaps for a single experiment."""
-    
+
     # Check if model is olfactory type
     if config.get('model_type') != 'olfactory':
         print(f"⚠️  Skipping {experiment_name} (not an olfactory model)")
         return
-    
+
     # Check if model file exists
     if not os.path.exists(model_path):
         print(f"⚠️  Model file not found: {model_path}")
         return
-    
+
     print(f"\nGenerating heatmaps for: {experiment_name}")
-    
-    # Load model
-    vocab_size = len(vocab_info['word2idx'])
-    num_tags = len(vocab_info['label2idx'])
-    
-    model = create_olfactory_ner(vocab_size, num_tags, config)
-    
+
+    # ------------------------------------------------------------------
+    # Infer vocab_size and num_tags directly from the checkpoint so we
+    # don't get shape mismatches when the experiment used a different
+    # dataset / label set than the globally-loaded CoNLL-2003 vocab.
+    # ------------------------------------------------------------------
     try:
         checkpoint = torch.load(model_path, map_location=device, weights_only=False)
-        model.load_state_dict(checkpoint['model_state_dict'])
+    except Exception as e:
+        print(f"❌ Error reading checkpoint: {e}")
+        return
+
+    state_dict = checkpoint.get('model_state_dict', checkpoint)
+
+    # embedding.weight  →  [vocab_size, embed_dim]
+    if 'embedding.weight' in state_dict:
+        vocab_size = state_dict['embedding.weight'].shape[0]
+    else:
+        vocab_size = len(vocab_info['word2idx'])
+
+    # hidden2tag.weight  →  [num_tags, hidden_dim]
+    if 'hidden2tag.weight' in state_dict:
+        num_tags = state_dict['hidden2tag.weight'].shape[0]
+    elif 'output_layer.weight' in state_dict:
+        num_tags = state_dict['output_layer.weight'].shape[0]
+    else:
+        num_tags = len(vocab_info['label2idx'])
+
+    print(f"  checkpoint vocab_size={vocab_size}, num_tags={num_tags}")
+
+    try:
+        model = create_olfactory_ner(vocab_size, num_tags, config)
+        model.load_state_dict(state_dict)
         model = model.to(device)
         model.eval()
     except Exception as e:
-        print(f"❌ Error loading model: {e}")
+        print(f"❌ Error loading model state: {e}")
         return
-    
-    # Entity types
-    entity_types = ['PER', 'LOC', 'ORG', 'MISC', 'O']
-    
+
+    # ------------------------------------------------------------------
+    # Build entity type list from the checkpoint's label mapping when
+    # available (handles WikiANN's 7-label vs CoNLL's 8-label scheme).
+    # ------------------------------------------------------------------
+    if 'label2idx' in checkpoint:
+        label2idx = checkpoint['label2idx']
+        idx2label = {v: k for k, v in label2idx.items()}
+        # Extract base entity types (strip B-/I- prefix)
+        entity_types = sorted({
+            lbl.split('-', 1)[-1]
+            for lbl in label2idx
+        })
+    else:
+        entity_types = ['PER', 'LOC', 'ORG', 'MISC', 'O']
+
     # Generate receptor heatmap
     if hasattr(model, 'receptor_layer'):
         print("  Generating receptor heatmap...")
         receptor_activations = get_layer_activations(model, test_loader, device, 'receptor')
-        
+
         receptor_heatmap_path = os.path.join(output_dir, f'receptor_heatmap_{experiment_name}.png')
         plot_heatmap(
             receptor_activations,
@@ -200,12 +235,12 @@ def generate_heatmaps_for_experiment(experiment_name, model_path, config, vocab_
             f'Receptor Layer Activations - {experiment_name}',
             'Receptor'
         )
-    
+
     # Generate glomeruli heatmap
     if hasattr(model, 'glomerular_layer') and config.get('use_glomeruli', True):
         print("  Generating glomeruli heatmap...")
         glomeruli_activations = get_layer_activations(model, test_loader, device, 'glomeruli')
-        
+
         glomeruli_heatmap_path = os.path.join(output_dir, f'glomeruli_heatmap_{experiment_name}.png')
         plot_heatmap(
             glomeruli_activations,
