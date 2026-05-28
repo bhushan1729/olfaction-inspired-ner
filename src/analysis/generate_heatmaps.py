@@ -3,6 +3,7 @@
 Generate heatmaps for receptor and glomeruli layer activations.
 """
 
+import argparse
 import os
 import sys
 import torch
@@ -215,59 +216,128 @@ def generate_heatmaps_for_experiment(experiment_name, model_path, config, vocab_
         )
 
 
+def scan_for_experiments(results_dir: Path) -> list:
+    """
+    Recursively scan results_dir for olfactory experiments.
+
+    Supported layouts:
+      Flat:    <results_dir>/<exp_name>/best_model.pt  +  results.json
+      Nested:  <results_dir>/<dataset>/<lang>/<exp_subdir>/best_model.pt  +  results.json
+                where <exp_subdir> is one of: mbert_olfactory, olfactory, olfactory_mbert
+    """
+    experiments = []
+    results_dir = Path(results_dir)
+
+    if not results_dir.exists():
+        print(f"✗ Results directory not found: {results_dir}")
+        return experiments
+
+    # Candidate subdirectory names that indicate an olfactory experiment
+    olfactory_names = {'mbert_olfactory', 'olfactory', 'olfactory_mbert'}
+
+    # Walk the full tree looking for best_model.pt
+    for model_path in results_dir.rglob('best_model.pt'):
+        results_path = model_path.parent / 'results.json'
+        config_path  = model_path.parent / 'config.json'
+
+        config = {}
+        if results_path.exists():
+            with open(results_path, 'r') as f:
+                data = json.load(f)
+            config = data.get('config', {})
+        elif config_path.exists():
+            with open(config_path, 'r') as f:
+                config = json.load(f)
+
+        # Infer model type: explicit in config, or from directory name
+        model_type = config.get('model_type', '')
+        dir_name   = model_path.parent.name.lower()
+        if not model_type:
+            if any(n in dir_name for n in olfactory_names):
+                model_type = 'olfactory'
+            else:
+                model_type = 'unknown'
+        config.setdefault('model_type', model_type)
+
+        # Build a human-readable experiment name from relative path
+        rel = model_path.parent.relative_to(results_dir)
+        exp_name = str(rel).replace(os.sep, '_')
+
+        experiments.append({
+            'name':       exp_name,
+            'model_path': str(model_path),
+            'config':     config,
+        })
+        print(f"  + Found: {exp_name}  [model_type={model_type}]")
+
+    return experiments
+
+
 def main():
     """Main execution function."""
+    parser = argparse.ArgumentParser(
+        description='Generate receptor/glomeruli heatmaps for olfactory NER models'
+    )
+    parser.add_argument(
+        '--results_dir',
+        type=str,
+        default='results',
+        help='Root directory containing experiment results (default: ./results)'
+    )
+    parser.add_argument(
+        '--output_dir',
+        type=str,
+        default='visualizations',
+        help='Directory to save heatmap images (default: ./visualizations)'
+    )
+    parser.add_argument(
+        '--data_dir',
+        type=str,
+        default='./data/raw',
+        help='Directory containing CoNLL data (default: ./data/raw)'
+    )
+    args = parser.parse_args()
+
     print("=" * 80)
     print("HEATMAP GENERATION FOR OLFACTION-INSPIRED NER")
     print("=" * 80)
-    
+
     # Create output directory
-    output_dir = 'visualizations'
-    os.makedirs(output_dir, exist_ok=True)
-    
-    # Load data (we'll use the same data for all experiments)
+    os.makedirs(args.output_dir, exist_ok=True)
+
+    # Load data
     print("\nLoading CoNLL-2003 dataset...")
     device = torch.device('cpu')
-    
+
     train_loader, valid_loader, test_loader, vocab_info = prepare_data(
-        data_dir='./data/raw',
+        data_dir=args.data_dir,
         batch_size=32,
         min_freq=2
     )
-    
     print(f"✓ Data loaded (Test set: {len(test_loader.dataset)} samples)")
-    
-    # Find all experiment results
-    experiments_to_process = []
-    
-    # Check results directory
-    results_dir = Path('results')
-    if results_dir.exists():
-        for exp_dir in results_dir.iterdir():
-            if exp_dir.is_dir():
-                model_path = exp_dir / 'best_model.pt'
-                results_path = exp_dir / 'results.json'
-                
-                if model_path.exists() and results_path.exists():
-                    with open(results_path, 'r') as f:
-                        results = json.load(f)
-                    
-                    config = results.get('config', {})
-                    experiments_to_process.append({
-                        'name': exp_dir.name,
-                        'model_path': str(model_path),
-                        'config': config
-                    })
-    
-    print(f"\nFound {len(experiments_to_process)} experiments with trained models:")
+
+    # Discover experiments
+    print(f"\nScanning for experiments in: {args.results_dir}")
+    experiments_to_process = scan_for_experiments(Path(args.results_dir))
+
+    print(f"\nFound {len(experiments_to_process)} experiment(s) with trained models:")
     for exp in experiments_to_process:
-        print(f"  - {exp['name']}")
-    
-    # Generate heatmaps for each experiment
+        print(f"  - {exp['name']}  (model_type={exp['config'].get('model_type', '?')})")
+
+    if not experiments_to_process:
+        print("\n✗ No experiments found.")
+        print(f"  Searched recursively inside: {args.results_dir}")
+        print("  Looking for files named 'best_model.pt' alongside 'results.json' or 'config.json'.")
+        print("  Re-run with --results_dir pointing to your actual save directory, e.g.:")
+        print("    python src/analysis/generate_heatmaps.py \\")
+        print("      --results_dir '/content/drive/My Drive/olfaction_inspired_ner/low_resource_exp'")
+        return
+
+    # Generate heatmaps
     print("\n" + "=" * 80)
     print("GENERATING HEATMAPS")
     print("=" * 80)
-    
+
     for exp in experiments_to_process:
         generate_heatmaps_for_experiment(
             exp['name'],
@@ -276,13 +346,13 @@ def main():
             vocab_info,
             test_loader,
             device,
-            output_dir
+            args.output_dir
         )
-    
+
     print("\n" + "=" * 80)
     print("HEATMAP GENERATION COMPLETED!")
     print("=" * 80)
-    print(f"All heatmaps saved to: {output_dir}/")
+    print(f"All heatmaps saved to: {args.output_dir}/")
     print("=" * 80)
 
 

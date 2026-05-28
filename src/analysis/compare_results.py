@@ -78,14 +78,29 @@ def load_experiment_results(results_dir: str) -> Dict:
                 dataset_key = f"{dataset_dir.name}_{lang_dir.name}"
                 all_results[dataset_key] = {}
                 
-                # Look for baseline and olfactory results
+                # Look for baseline and olfactory results under multiple naming conventions
                 for exp_type in ['baseline', 'olfactory']:
-                    exp_dir = lang_dir / f"mbert_{exp_type}"
-                    results_file = exp_dir / 'results.json'
-                    
-                    if results_file.exists():
-                        with open(results_file) as f:
-                            all_results[dataset_key][exp_type] = json.load(f)
+                    # Try several common subdirectory names
+                    candidate_dirs = [
+                        lang_dir / f"mbert_{exp_type}",
+                        lang_dir / exp_type,
+                        lang_dir / f"{exp_type}_mbert",
+                    ]
+                    for exp_dir in candidate_dirs:
+                        results_file = exp_dir / 'results.json'
+                        if results_file.exists():
+                            with open(results_file) as f:
+                                all_results[dataset_key][exp_type] = json.load(f)
+                            break  # stop at first match
+                
+                # Diagnostic: show what was found
+                found = list(all_results[dataset_key].keys())
+                if found:
+                    print(f"  [{dataset_key}] found: {found}")
+                else:
+                    # List actual subdirs to help diagnose naming mismatches
+                    subdirs = [d.name for d in lang_dir.iterdir() if d.is_dir()]
+                    print(f"  [{dataset_key}] ⚠ no results found. Subdirs: {subdirs}")
     
     return all_results
 
@@ -120,6 +135,10 @@ def create_comparison_table(results: Dict) -> pd.DataFrame:
 
 def plot_comparison_bars(df: pd.DataFrame, output_dir: Path):
     """Create bar chart comparison."""
+    if df.empty:
+        print("⚠ Skipping bar chart: comparison table is empty (no matched baseline+olfactory pairs).")
+        return
+
     fig, axes = plt.subplots(1, 3, figsize=(18, 6))
     
     metrics = ['F1', 'Precision', 'Recall']
@@ -152,6 +171,10 @@ def plot_comparison_bars(df: pd.DataFrame, output_dir: Path):
 
 def plot_improvement_heatmap(df: pd.DataFrame, output_dir: Path):
     """Create heatmap of improvements."""
+    if df.empty:
+        print("⚠ Skipping improvement heatmap: comparison table is empty.")
+        return
+
     improvement_data = df[['Dataset', 'F1 Improvement', 'Precision Improvement', 'Recall Improvement']].set_index('Dataset')
     
     fig, ax = plt.subplots(figsize=(10, 6))
@@ -201,6 +224,10 @@ def analyze_entity_level(results: Dict, output_dir: Path):
 
 def perform_statistical_tests(df: pd.DataFrame, output_dir: Path):
     """Perform statistical significance tests."""
+    if df.empty:
+        print("⚠ Skipping statistical tests: comparison table is empty.")
+        return None
+
     baseline_scores = df['Baseline F1'].tolist()
     olfactory_scores = df['Olfactory F1'].tolist()
     
@@ -248,6 +275,9 @@ def perform_statistical_tests(df: pd.DataFrame, output_dir: Path):
 def generate_markdown_report(df: pd.DataFrame, test_results: Dict, 
                              entity_analysis: Dict, output_dir: Path):
     """Generate comprehensive markdown report."""
+    if df.empty:
+        print("⚠ Skipping markdown report: comparison table is empty.")
+        return
     
     report = f"""# Baseline vs Olfactory NER: Comparative Analysis
 
@@ -402,6 +432,15 @@ def main(args):
     print("="*80)
     print(df.to_string(index=False, float_format=lambda x: f'{x:.4f}'))
     print("="*80)
+    
+    if df.empty:
+        print("\n✗ Comparison table is empty — no datasets have BOTH baseline and olfactory results.")
+        print("  Check the diagnostic output above for subdirectory names that were found.")
+        print("  Expected structure: <results_dir>/<dataset>/<lang>/mbert_baseline/results.json")
+        print("                                                      /mbert_olfactory/results.json")
+        print("  Also tried:        <results_dir>/<dataset>/<lang>/baseline/results.json")
+        print("                                                      /olfactory/results.json")
+        return
     
     # Generate visualizations
     print("\nGenerating visualizations...")
