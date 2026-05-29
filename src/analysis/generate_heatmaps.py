@@ -1,394 +1,387 @@
-#!/usr/bin/env python3
 """
-Generate heatmaps for receptor and glomeruli layer activations.
+Generate receptor & glomeruli activation heatmaps for olfactory NER models.
+
+For each (dataset, experiment-type) combination only the **best seed** — the one
+with the highest test F1 — is used.  Heatmaps are therefore one-per-(dataset,exp)
+instead of one per seed run.
+
+Expected directory layout:
+    <results_dir>/<dataset_key>/<exp_type>/seed_<N>/
+        results.json          ← used to pick best seed
+        best_model.pt         ← model weights
+
+Usage:
+    python src/analysis/generate_heatmaps.py \
+        --results_dir "/content/drive/My Drive/olfaction_inspired_ner/low_resource_exp" \
+        --output_dir  "/content/drive/My Drive/olfaction_inspired_ner/analysis_outputs/heatmaps" \
+        --data_dir    "/content/drive/My Drive/olfaction_inspired_ner/data"
 """
 
 import argparse
+import json
 import os
 import sys
-import torch
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
+from collections import defaultdict
 from pathlib import Path
-import json
 
-# Add project root to path
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, project_root)
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import numpy as np
+import seaborn as sns
+import torch
 
-from src.data.dataset import prepare_data
-from src.model.olfactory_ner import create_olfactory_ner
-from src.train import load_config
+# ---------------------------------------------------------------------------
+# Project root on sys.path so src.* imports work
+# ---------------------------------------------------------------------------
+_HERE = Path(__file__).resolve()
+PROJECT_ROOT = _HERE.parent.parent.parent          # …/olfaction-inspired-ner
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+# ---------------------------------------------------------------------------
+# Known exp types
+# ---------------------------------------------------------------------------
+KNOWN_EXP_TYPES = {
+    'baseline', 'olfactory', 'receptors_only',
+    'no_sparsity', 'more_receptors', 'more_glomeruli',
+}
 
 
-def get_layer_activations(model, data_loader, device, layer_name='receptor'):
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+def _test_f1(json_path: Path) -> float:
+    try:
+        with open(json_path, 'r') as f:
+            d = json.load(f)
+        t = d.get('test', {})
+        return float(t.get('f1', t.get('test_f1', 0.0)))
+    except Exception:
+        return 0.0
+
+
+def find_best_seeds(results_dir: Path) -> list:
     """
-    Extract activations from receptor or glomeruli layer.
-    
-    Args:
-        model: Trained model
-        data_loader: Data loader
-        device: Device to run on
-        layer_name: 'receptor' or 'glomeruli'
-    
+    Scan results_dir and return one entry per (dataset_key, exp_type) with
+    the seed directory that has the highest test F1.
+
+    Returns list of dicts:
+        {
+          'dataset':    str,
+          'exp_type':   str,
+          'seed_dir':   Path,
+          'model_path': Path,
+          'config':     dict,
+          'test_f1':    float,
+        }
+    """
+    # Collect all seed candidates
+    # raw[dataset][exp_type] = [(f1, seed_dir_path)]
+    raw = defaultdict(lambda: defaultdict(list))
+
+    for json_path in sorted(results_dir.rglob('results.json')):
+        rel   = json_path.relative_to(results_dir)
+        parts = list(rel.parts)
+
+        dataset_key = None
+        exp_type    = None
+        for depth, part in enumerate(parts[:-1]):
+            if part in KNOWN_EXP_TYPES:
+                exp_type    = part
+                dataset_key = '/'.join(parts[:depth]) if depth > 0 else 'unknown'
+                break
+
+        if exp_type is None or dataset_key is None:
+            continue
+
+        seed_dir = json_path.parent
+        f1 = _test_f1(json_path)
+        raw[dataset_key][exp_type].append((f1, seed_dir, json_path))
+
+    best = []
+    for dataset_key, exp_map in sorted(raw.items()):
+        for exp_type, candidates in sorted(exp_map.items()):
+            # Pick seed with highest test F1
+            candidates.sort(key=lambda x: x[0], reverse=True)
+            best_f1, best_seed_dir, best_json = candidates[0]
+
+            model_path = best_seed_dir / 'best_model.pt'
+
+            # Load config from results.json
+            config = {}
+            try:
+                with open(best_json, 'r') as f:
+                    data = json.load(f)
+                config = data.get('config', {})
+            except Exception:
+                pass
+
+            print(f"  [{dataset_key}] {exp_type:20s} "
+                  f"best_seed={best_seed_dir.name}  F1={best_f1:.4f}  "
+                  f"model={'✓' if model_path.exists() else '✗'}")
+
+            best.append({
+                'dataset':    dataset_key,
+                'exp_type':   exp_type,
+                'seed_dir':   best_seed_dir,
+                'model_path': model_path,
+                'config':     config,
+                'test_f1':    best_f1,
+            })
+
+    return best
+
+
+# ---------------------------------------------------------------------------
+# Activation extraction
+# ---------------------------------------------------------------------------
+def get_activations(model, data_loader, device, idx2label: dict) -> dict:
+    """
+    Run the model on data_loader and collect mean receptor & glomeruli
+    activations per entity type.
+
     Returns:
-        activations: Dict mapping entity types to activation matrices
+        {
+          'receptor':  {entity_type: np.ndarray},   # may be empty
+          'glomeruli': {entity_type: np.ndarray},   # may be empty
+        }
     """
     model.eval()
-    
-    # Storage for activations per entity type
-    entity_activations = {
-        'PER': [],
-        'LOC': [],
-        'ORG': [],
-        'MISC': [],
-        'O': []
-    }
-    
+    receptor_by_entity  = defaultdict(list)
+    glomeruli_by_entity = defaultdict(list)
+
     with torch.no_grad():
-        for sentences, tags, lengths in data_loader:
+        for batch in data_loader:
+            sentences, tags, lengths = batch
             sentences = sentences.to(device)
-            tags = tags.to(device)
-            lengths = lengths.to(device)
-            
-            # Get embeddings
-            embedded = model.embedding(sentences)
-            
-            # Get activations based on layer
-            receptors, glomeruli, mitral = model.get_receptor_activations(sentences)
-            if layer_name == 'receptor' and receptors is not None:
-                activations = receptors
-            elif layer_name == 'glomeruli' and glomeruli is not None:
-                activations = glomeruli
-            else:
-                continue
-            
-            # Process each sequence in batch
+            tags      = tags.to(device)
+            lengths   = lengths.to(device)
+
+            try:
+                receptors, glomeruli, _ = model.get_receptor_activations(sentences)
+            except Exception:
+                return {'receptor': {}, 'glomeruli': {}}
+
             for i, length in enumerate(lengths):
-                seq_activations = activations[i, :length].cpu().numpy()  # [seq_len, num_features]
-                seq_tags = tags[i, :length].cpu().numpy()
-                
-                # Group activations by entity type
-                for t in range(length):
-                    tag_idx = seq_tags[t]
-                    
-                    # Map tag index to entity type
-                    if tag_idx == 0:  # B-PER or I-PER (depends on label mapping)
-                        entity_type = 'PER'
-                    elif tag_idx == 1:  # B-LOC or I-LOC
-                        entity_type = 'LOC'
-                    elif tag_idx == 2:  # B-ORG or I-ORG
-                        entity_type = 'ORG'
-                    elif tag_idx == 3:  # B-MISC or I-MISC
-                        entity_type = 'MISC'
-                    else:
-                        entity_type = 'O'
-                    
-                    entity_activations[entity_type].append(seq_activations[t])
-    
-    # Compute mean activations per entity type
-    mean_activations = {}
-    for entity_type, acts in entity_activations.items():
-        if len(acts) > 0:
-            mean_activations[entity_type] = np.mean(acts, axis=0)
-    
-    return mean_activations
+                L = int(length.item())
+                for t in range(L):
+                    label = idx2label.get(int(tags[i, t].item()), 'O')
+                    if label == 'O':
+                        continue
+                    entity_type = label.split('-', 1)[-1]
+
+                    if receptors is not None:
+                        receptor_by_entity[entity_type].append(
+                            receptors[i, t].cpu().numpy())
+                    if glomeruli is not None:
+                        glomeruli_by_entity[entity_type].append(
+                            glomeruli[i, t].cpu().numpy())
+
+    def _mean(d):
+        return {e: np.mean(acts, axis=0) for e, acts in d.items() if acts}
+
+    return {
+        'receptor':  _mean(receptor_by_entity),
+        'glomeruli': _mean(glomeruli_by_entity),
+    }
 
 
-def plot_heatmap(activations, entity_types, save_path, title, layer_name):
+# ---------------------------------------------------------------------------
+# Plotting
+# ---------------------------------------------------------------------------
+def plot_activation_heatmap(activations: dict, layer_name: str,
+                            title: str, save_path: Path):
     """
-    Plot heatmap of activations.
-    
-    Args:
-        activations: Dict mapping entity types to activation vectors
-        entity_types: List of entity types
-        save_path: Path to save the plot
-        title: Plot title
-        layer_name: 'Receptor' or 'Glomeruli'
+    Plot a heatmap of mean activations (entities × units).
+
+    activations: {entity_type: mean_vector}
     """
-    # Create activation matrix
-    activation_matrix = []
-    valid_entities = []
-    
-    for entity in entity_types:
-        if entity in activations:
-            activation_matrix.append(activations[entity])
-            valid_entities.append(entity)
-    
-    if not activation_matrix:
-        print(f"⚠️  No activations found for {title}")
+    if not activations:
+        print(f"  ⚠  No activations for {layer_name} — skipping.")
         return
-    
-    activation_matrix = np.array(activation_matrix)  # [num_entities, num_features]
-    
-    # Create figure
-    fig, ax = plt.subplots(figsize=(16, 6))
-    
-    # Plot heatmap
-    sns.heatmap(
-        activation_matrix,
-        yticklabels=valid_entities,
-        xticklabels=[f'{layer_name[0]}{i+1}' for i in range(activation_matrix.shape[1])],
-        cmap='YlOrRd',
-        cbar_kws={'label': 'Mean Activation'},
-        ax=ax
-    )
-    
-    ax.set_title(title, fontsize=14, fontweight='bold', pad=20)
-    ax.set_xlabel(f'{layer_name} Units', fontsize=12)
-    ax.set_ylabel('Entity Type', fontsize=12)
-    
-    # Adjust x-axis labels to show every 10th unit for readability
-    if activation_matrix.shape[1] > 50:
-        xticks = ax.get_xticks()
-        xticklabels = [f'{layer_name[0]}{i+1}' if (i+1) % 10 == 0 else '' 
-                      for i in range(activation_matrix.shape[1])]
-        ax.set_xticklabels(xticklabels, rotation=0)
-    
+
+    entity_types = sorted(activations.keys())
+    matrix = np.array([activations[e] for e in entity_types])  # [E, U]
+
+    # Limit x-axis labels for readability
+    n_units = matrix.shape[1]
+    if n_units > 64:
+        step = max(1, n_units // 32)
+        xticklabels = [str(i) if i % step == 0 else '' for i in range(n_units)]
+    else:
+        xticklabels = list(range(n_units))
+
+    fig, ax = plt.subplots(figsize=(max(14, n_units // 4), max(4, len(entity_types) + 1)))
+    sns.heatmap(matrix,
+                yticklabels=entity_types,
+                xticklabels=xticklabels,
+                cmap='YlOrRd',
+                cbar_kws={'label': 'Mean Activation'},
+                ax=ax)
+    ax.set_title(title, fontsize=13, fontweight='bold', pad=12)
+    ax.set_xlabel(f'{layer_name} Unit Index', fontsize=11)
+    ax.set_ylabel('Entity Type', fontsize=11)
     plt.tight_layout()
-    plt.savefig(save_path, dpi=150, bbox_inches='tight')
+    plt.savefig(save_path, dpi=180, bbox_inches='tight')
     plt.close()
-    
-    print(f"✓ Saved heatmap: {save_path}")
+    print(f"  ✓ Saved {layer_name} heatmap → {save_path}")
 
 
-def generate_heatmaps_for_experiment(experiment_name, model_path, config, vocab_info,
-                                     test_loader, device, output_dir):
-    """Generate heatmaps for a single experiment."""
+# ---------------------------------------------------------------------------
+# Process one experiment (best seed)
+# ---------------------------------------------------------------------------
+def process_experiment(entry: dict, vocab_info: dict,
+                       test_loader, device, output_dir: Path):
+    dataset  = entry['dataset']
+    exp_type = entry['exp_type']
+    config   = entry['config']
 
-    # Check if model is olfactory type
-    if config.get('model_type') != 'olfactory':
-        print(f"⚠️  Skipping {experiment_name} (not an olfactory model)")
+    # Only olfactory-type models have receptor/glomeruli layers
+    model_type = config.get('model_type', '')
+    if model_type not in ('olfactory', 'receptors_only', 'no_sparsity',
+                          'more_receptors', 'more_glomeruli'):
+        print(f"  ⚠  [{dataset}] {exp_type}: not an olfactory model ({model_type}) — skipping.")
         return
 
-    # Check if model file exists
-    if not os.path.exists(model_path):
-        print(f"⚠️  Model file not found: {model_path}")
+    model_path = entry['model_path']
+    if not model_path.exists():
+        print(f"  ⚠  [{dataset}] {exp_type}: best_model.pt not found at {model_path} — skipping.")
         return
 
-    print(f"\nGenerating heatmaps for: {experiment_name}")
+    print(f"\n  Processing [{dataset}] {exp_type}  (F1={entry['test_f1']:.4f})")
 
-    # ------------------------------------------------------------------
-    # Infer vocab_size and num_tags directly from the checkpoint so we
-    # don't get shape mismatches when the experiment used a different
-    # dataset / label set than the globally-loaded CoNLL-2003 vocab.
-    # ------------------------------------------------------------------
+    # --- Load checkpoint ---
     try:
-        checkpoint = torch.load(model_path, map_location=device, weights_only=False)
+        ckpt = torch.load(model_path, map_location=device, weights_only=False)
     except Exception as e:
-        print(f"❌ Error reading checkpoint: {e}")
+        print(f"  ✗ Cannot load checkpoint: {e}")
         return
 
-    state_dict = checkpoint.get('model_state_dict', checkpoint)
+    state_dict = ckpt.get('model_state_dict', ckpt)
 
-    # embedding.weight  →  [vocab_size, embed_dim]
+    # Derive vocab_size and num_tags from the checkpoint
     if 'embedding.weight' in state_dict:
         vocab_size = state_dict['embedding.weight'].shape[0]
     else:
-        vocab_size = len(vocab_info['word2idx'])
+        vocab_size = len(vocab_info.get('word2idx', {}))
 
-    # hidden2tag.weight  →  [num_tags, hidden_dim]
     if 'hidden2tag.weight' in state_dict:
         num_tags = state_dict['hidden2tag.weight'].shape[0]
     elif 'output_layer.weight' in state_dict:
         num_tags = state_dict['output_layer.weight'].shape[0]
     else:
-        num_tags = len(vocab_info['label2idx'])
+        num_tags = len(vocab_info.get('label2idx', {}))
 
-    print(f"  checkpoint vocab_size={vocab_size}, num_tags={num_tags}")
+    # --- Build label mapping ---
+    if 'label2idx' in ckpt:
+        idx2label = {v: k for k, v in ckpt['label2idx'].items()}
+    elif 'label2idx' in vocab_info:
+        idx2label = {v: k for k, v in vocab_info['label2idx'].items()}
+    else:
+        idx2label = {i: str(i) for i in range(num_tags)}
 
+    # --- Import model factory ---
     try:
+        from src.model.olfactory_ner import create_olfactory_ner
         model = create_olfactory_ner(vocab_size, num_tags, config)
-        model.load_state_dict(state_dict)
+        model.load_state_dict(state_dict, strict=False)
         model = model.to(device)
         model.eval()
     except Exception as e:
-        print(f"❌ Error loading model state: {e}")
+        print(f"  ✗ Cannot instantiate / load model: {e}")
         return
 
-    # ------------------------------------------------------------------
-    # Build entity type list from the checkpoint's label mapping when
-    # available (handles WikiANN's 7-label vs CoNLL's 8-label scheme).
-    # ------------------------------------------------------------------
-    if 'label2idx' in checkpoint:
-        label2idx = checkpoint['label2idx']
-        idx2label = {v: k for k, v in label2idx.items()}
-        # Extract base entity types (strip B-/I- prefix)
-        entity_types = sorted({
-            lbl.split('-', 1)[-1]
-            for lbl in label2idx
-        })
-    else:
-        entity_types = ['PER', 'LOC', 'ORG', 'MISC', 'O']
+    # --- Extract activations ---
+    acts = get_activations(model, test_loader, device, idx2label)
 
-    # Generate receptor heatmap
-    if hasattr(model, 'receptor_layer'):
-        print("  Generating receptor heatmap...")
-        receptor_activations = get_layer_activations(model, test_loader, device, 'receptor')
+    # --- Save heatmaps ---
+    safe_dataset = dataset.replace('/', '_')
+    exp_tag = f"{safe_dataset}__{exp_type}"
 
-        receptor_heatmap_path = os.path.join(output_dir, f'receptor_heatmap_{experiment_name}.png')
-        plot_heatmap(
-            receptor_activations,
-            entity_types,
-            receptor_heatmap_path,
-            f'Receptor Layer Activations - {experiment_name}',
-            'Receptor'
-        )
-
-    # Generate glomeruli heatmap
-    if hasattr(model, 'glomerular_layer') and config.get('use_glomeruli', True):
-        print("  Generating glomeruli heatmap...")
-        glomeruli_activations = get_layer_activations(model, test_loader, device, 'glomeruli')
-
-        glomeruli_heatmap_path = os.path.join(output_dir, f'glomeruli_heatmap_{experiment_name}.png')
-        plot_heatmap(
-            glomeruli_activations,
-            entity_types,
-            glomeruli_heatmap_path,
-            f'Glomeruli Layer Activations - {experiment_name}',
-            'Glomeruli'
-        )
+    for layer in ('receptor', 'glomeruli'):
+        if acts[layer]:
+            title = (f"{layer.capitalize()} Activations — "
+                     f"{dataset} / {exp_type}  (best seed F1={entry['test_f1']:.4f})")
+            save_path = output_dir / f'{layer}_heatmap__{exp_tag}.png'
+            plot_activation_heatmap(acts[layer], layer.capitalize(), title, save_path)
+        else:
+            print(f"  ⚠  No {layer} activations extracted for {exp_tag}.")
 
 
-def scan_for_experiments(results_dir: Path) -> list:
-    """
-    Recursively scan results_dir for olfactory experiments.
-
-    Supported layouts:
-      Flat:    <results_dir>/<exp_name>/best_model.pt  +  results.json
-      Nested:  <results_dir>/<dataset>/<lang>/<exp_subdir>/best_model.pt  +  results.json
-                where <exp_subdir> is one of: mbert_olfactory, olfactory, olfactory_mbert
-    """
-    experiments = []
-    results_dir = Path(results_dir)
-
-    if not results_dir.exists():
-        print(f"✗ Results directory not found: {results_dir}")
-        return experiments
-
-    # Candidate subdirectory names that indicate an olfactory experiment
-    olfactory_names = {'mbert_olfactory', 'olfactory', 'olfactory_mbert'}
-
-    # Walk the full tree looking for best_model.pt
-    for model_path in results_dir.rglob('best_model.pt'):
-        results_path = model_path.parent / 'results.json'
-        config_path  = model_path.parent / 'config.json'
-
-        config = {}
-        if results_path.exists():
-            with open(results_path, 'r') as f:
-                data = json.load(f)
-            config = data.get('config', {})
-        elif config_path.exists():
-            with open(config_path, 'r') as f:
-                config = json.load(f)
-
-        # Infer model type: explicit in config, or from directory name
-        model_type = config.get('model_type', '')
-        dir_name   = model_path.parent.name.lower()
-        if not model_type:
-            if any(n in dir_name for n in olfactory_names):
-                model_type = 'olfactory'
-            else:
-                model_type = 'unknown'
-        config.setdefault('model_type', model_type)
-
-        # Build a human-readable experiment name from relative path
-        rel = model_path.parent.relative_to(results_dir)
-        exp_name = str(rel).replace(os.sep, '_')
-
-        experiments.append({
-            'name':       exp_name,
-            'model_path': str(model_path),
-            'config':     config,
-        })
-        print(f"  + Found: {exp_name}  [model_type={model_type}]")
-
-    return experiments
-
-
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
 def main():
-    """Main execution function."""
     parser = argparse.ArgumentParser(
-        description='Generate receptor/glomeruli heatmaps for olfactory NER models'
+        description='Generate receptor/glomeruli heatmaps using best-seed models'
     )
-    parser.add_argument(
-        '--results_dir',
-        type=str,
-        default='results',
-        help='Root directory containing experiment results (default: ./results)'
-    )
-    parser.add_argument(
-        '--output_dir',
-        type=str,
-        default='visualizations',
-        help='Directory to save heatmap images (default: ./visualizations)'
-    )
-    parser.add_argument(
-        '--data_dir',
-        type=str,
-        default='./data/raw',
-        help='Directory containing CoNLL data (default: ./data/raw)'
-    )
+    parser.add_argument('--results_dir', type=str, required=True,
+                        help='Root dir of experiment results')
+    parser.add_argument('--output_dir',  type=str, required=True,
+                        help='Where to save heatmap PNG files')
+    parser.add_argument('--data_dir',    type=str, required=True,
+                        help='Directory containing raw dataset files (for test_loader)')
+    parser.add_argument('--dataset',     type=str, default='conll2003',
+                        help='Dataset name to pass to prepare_data (default: conll2003)')
+    parser.add_argument('--batch_size',  type=int, default=32)
+    parser.add_argument('--no_cuda',     action='store_true',
+                        help='Force CPU even if CUDA is available')
     args = parser.parse_args()
 
-    print("=" * 80)
-    print("HEATMAP GENERATION FOR OLFACTION-INSPIRED NER")
-    print("=" * 80)
+    device = torch.device('cpu' if args.no_cuda or not torch.cuda.is_available()
+                          else 'cuda')
+    print(f"\n{'='*70}")
+    print("HEATMAP GENERATION — BEST SEED PER (DATASET × EXPERIMENT)")
+    print('='*70)
+    print(f"Results dir : {args.results_dir}")
+    print(f"Output dir  : {args.output_dir}")
+    print(f"Data dir    : {args.data_dir}")
+    print(f"Device      : {device}")
+    print('='*70)
 
-    # Create output directory
-    os.makedirs(args.output_dir, exist_ok=True)
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Load data
-    print("\nLoading CoNLL-2003 dataset...")
-    device = torch.device('cpu')
-
-    train_loader, valid_loader, test_loader, vocab_info = prepare_data(
-        data_dir=args.data_dir,
-        batch_size=32,
-        min_freq=2
-    )
-    print(f"✓ Data loaded (Test set: {len(test_loader.dataset)} samples)")
-
-    # Discover experiments
-    print(f"\nScanning for experiments in: {args.results_dir}")
-    experiments_to_process = scan_for_experiments(Path(args.results_dir))
-
-    print(f"\nFound {len(experiments_to_process)} experiment(s) with trained models:")
-    for exp in experiments_to_process:
-        print(f"  - {exp['name']}  (model_type={exp['config'].get('model_type', '?')})")
-
-    if not experiments_to_process:
-        print("\n✗ No experiments found.")
-        print(f"  Searched recursively inside: {args.results_dir}")
-        print("  Looking for files named 'best_model.pt' alongside 'results.json' or 'config.json'.")
-        print("  Re-run with --results_dir pointing to your actual save directory, e.g.:")
-        print("    python src/analysis/generate_heatmaps.py \\")
-        print("      --results_dir '/content/drive/My Drive/olfaction_inspired_ner/low_resource_exp'")
+    # --- Load data ---
+    print("\nLoading dataset for activation extraction …")
+    try:
+        from src.data.dataset import prepare_data
+        _, _, test_loader, vocab_info = prepare_data(
+            data_dir=args.data_dir,
+            batch_size=args.batch_size,
+            min_freq=2,
+        )
+        print(f"✓ Test loader ready ({len(test_loader.dataset)} samples)")
+    except Exception as e:
+        print(f"✗ Failed to load data: {e}")
+        print("  Heatmaps require a test loader — aborting.")
         return
 
-    # Generate heatmaps
-    print("\n" + "=" * 80)
+    # --- Find best seeds ---
+    print("\nFinding best seed per (dataset, experiment) …")
+    results_dir = Path(args.results_dir)
+    best_entries = find_best_seeds(results_dir)
+
+    if not best_entries:
+        print("✗ No results found — nothing to do.")
+        return
+
+    olfactory_entries = [e for e in best_entries
+                         if e['exp_type'] != 'baseline']
+    print(f"\nFound {len(olfactory_entries)} olfactory-type experiment(s) to process.")
+
+    # --- Generate heatmaps ---
+    print(f"\n{'='*70}")
     print("GENERATING HEATMAPS")
-    print("=" * 80)
+    print('='*70)
 
-    for exp in experiments_to_process:
-        generate_heatmaps_for_experiment(
-            exp['name'],
-            exp['model_path'],
-            exp['config'],
-            vocab_info,
-            test_loader,
-            device,
-            args.output_dir
-        )
+    for entry in olfactory_entries:
+        process_experiment(entry, vocab_info, test_loader, device, output_dir)
 
-    print("\n" + "=" * 80)
-    print("HEATMAP GENERATION COMPLETED!")
-    print("=" * 80)
-    print(f"All heatmaps saved to: {args.output_dir}/")
-    print("=" * 80)
+    print(f"\n{'='*70}")
+    print(f"DONE — heatmaps saved to: {output_dir}")
+    print('='*70)
 
 
 if __name__ == '__main__':

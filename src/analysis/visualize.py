@@ -1,587 +1,495 @@
 """
-Analysis tools for receptor activations.
-This is critical for demonstrating the biological inspiration works.
+Receptor & glomeruli activation visualizations for olfactory NER models.
+
+For each (dataset, experiment-type) only the **best seed** (highest test F1)
+is used to generate:
+  1. Receptor activation heatmap (entities × receptor units)
+  2. Glomeruli activation heatmap (entities × glomerulus units)
+  3. RSI (Receptor Selectivity Index) histogram — receptors & glomeruli
+  4. t-SNE of glomerular representations coloured by entity type
+  5. Top-activating tokens per receptor (saved as JSON)
+
+Expected directory layout:
+    <results_dir>/<dataset_key>/<exp_type>/seed_<N>/
+        results.json
+        best_model.pt
+
+Usage:
+    python src/analysis/visualize.py \
+        --results_dir "/content/drive/My Drive/olfaction_inspired_ner/low_resource_exp" \
+        --output_dir  "/content/drive/My Drive/olfaction_inspired_ner/analysis_outputs/visualize" \
+        --data_dir    "/content/drive/My Drive/olfaction_inspired_ner/data"
 """
 
-import torch
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-from sklearn.manifold import TSNE
-from collections import defaultdict
+import argparse
+import json
 import os
+import sys
+from collections import defaultdict
+from pathlib import Path
+
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import numpy as np
+import seaborn as sns
+import torch
+
+# ---------------------------------------------------------------------------
+# Project root on sys.path
+# ---------------------------------------------------------------------------
+_HERE = Path(__file__).resolve()
+PROJECT_ROOT = _HERE.parent.parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+# ---------------------------------------------------------------------------
+KNOWN_EXP_TYPES = {
+    'baseline', 'olfactory', 'receptors_only',
+    'no_sparsity', 'more_receptors', 'more_glomeruli',
+}
+
+OLFACTORY_EXP_TYPES = KNOWN_EXP_TYPES - {'baseline'}
 
 
-def analyze_receptor_activations(model, data_loader, vocab_info, device, save_dir='./analysis', experiment_name=None):
+# ---------------------------------------------------------------------------
+# Scanning — identical logic as generate_heatmaps.py
+# ---------------------------------------------------------------------------
+def _test_f1(json_path: Path) -> float:
+    try:
+        with open(json_path, 'r') as f:
+            d = json.load(f)
+        t = d.get('test', {})
+        return float(t.get('f1', t.get('test_f1', 0.0)))
+    except Exception:
+        return 0.0
+
+
+def find_best_seeds(results_dir: Path) -> list:
+    """Return one entry per (dataset, exp_type) with the best-F1 seed."""
+    raw = defaultdict(lambda: defaultdict(list))
+
+    for json_path in sorted(results_dir.rglob('results.json')):
+        rel   = json_path.relative_to(results_dir)
+        parts = list(rel.parts)
+
+        dataset_key = None
+        exp_type    = None
+        for depth, part in enumerate(parts[:-1]):
+            if part in KNOWN_EXP_TYPES:
+                exp_type    = part
+                dataset_key = '/'.join(parts[:depth]) if depth > 0 else 'unknown'
+                break
+
+        if exp_type is None or dataset_key is None:
+            continue
+
+        f1 = _test_f1(json_path)
+        raw[dataset_key][exp_type].append((f1, json_path.parent, json_path))
+
+    best = []
+    for dataset_key, exp_map in sorted(raw.items()):
+        for exp_type, candidates in sorted(exp_map.items()):
+            candidates.sort(key=lambda x: x[0], reverse=True)
+            best_f1, best_seed_dir, best_json = candidates[0]
+            config = {}
+            try:
+                with open(best_json) as f:
+                    config = json.load(f).get('config', {})
+            except Exception:
+                pass
+
+            model_path = best_seed_dir / 'best_model.pt'
+            print(f"  [{dataset_key}] {exp_type:20s}  "
+                  f"seed={best_seed_dir.name}  F1={best_f1:.4f}  "
+                  f"model={'✓' if model_path.exists() else '✗'}")
+            best.append({
+                'dataset':    dataset_key,
+                'exp_type':   exp_type,
+                'seed_dir':   best_seed_dir,
+                'model_path': model_path,
+                'config':     config,
+                'test_f1':    best_f1,
+            })
+    return best
+
+
+# ---------------------------------------------------------------------------
+# Activation collection
+# ---------------------------------------------------------------------------
+def collect_activations(model, data_loader, device, idx2label: dict,
+                        idx2word: dict) -> dict:
     """
-    Analyze receptor activation patterns.
-    
-    This generates visualizations that are crucial for the paper:
-    1. Receptor activation heatmap per entity type
-    2. Top activating tokens per receptor
-    3. t-SNE visualization of glomerular representations
-    4. Receptor specialization metrics
+    Run model through test_loader and return raw per-token activations.
+
+    Returns dict with keys:
+        'receptor':   {entity_type: list of 1-D numpy arrays}
+        'glomeruli':  {entity_type: list of 1-D numpy arrays}
+        'token_receptor': {receptor_idx: [(token_str, activation_val), …]}
     """
     model.eval()
-    os.makedirs(save_dir, exist_ok=True)
-    
-    idx2word = vocab_info['idx2word']
-    idx2label = vocab_info['idx2label']
-    
-    # Collect activations
-    print("Collecting receptor activations...")
-    receptor_activations_by_entity = defaultdict(list)
-    glomeruli_activations_by_entity = defaultdict(list)
-    mitral_activations_by_entity = defaultdict(list)
-    token_activations = defaultdict(list)  # receptor -> list of (token, activation)
-    
+    receptor_by_entity  = defaultdict(list)
+    glomeruli_by_entity = defaultdict(list)
+    token_receptor      = defaultdict(list)   # receptor_idx → [(token, act)]
+
     with torch.no_grad():
-        for sentences, tags, lengths in data_loader:
+        for batch in data_loader:
+            sentences, tags, lengths = batch
             sentences = sentences.to(device)
-            
-            # Get activations
-            receptors, glomeruli, mitral = model.get_receptor_activations(sentences)
-            
-            if receptors is None:
-                print("Model does not have receptors (baseline model?)")
-                return None
-            
-            # Process each sequence
-            for i in range(len(sentences)):
-                length = lengths[i].item()
-                
-                for j in range(length):
-                    token_idx = sentences[i, j].item()
-                    token = idx2word[token_idx]
-                    label = idx2label[tags[i, j].item()]
-                    
-                    # Store by entity type (skip 'O' tags)
+            tags      = tags.to(device)
+            lengths   = lengths.to(device)
+
+            try:
+                receptors, glomeruli, _ = model.get_receptor_activations(sentences)
+            except Exception:
+                return {
+                    'receptor':       {},
+                    'glomeruli':      {},
+                    'token_receptor': {},
+                }
+
+            for i, length in enumerate(lengths):
+                L = int(length.item())
+                for t in range(L):
+                    label = idx2label.get(int(tags[i, t].item()), 'O')
                     if label != 'O':
-                        entity_type = label.split('-')[1] if '-' in label else label
-                        receptor_activations_by_entity[entity_type].append(
-                            receptors[i, j].cpu().numpy()
-                        )
-                        glomeruli_activations_by_entity[entity_type].append(
-                            glomeruli[i, j].cpu().numpy()
-                        )
-                        if mitral is not None:
-                            mitral_activations_by_entity[entity_type].append(
-                                mitral[i, j].cpu().numpy()
-                            )
-                    
-                    # Store top activations per receptor
-                    receptor_acts = receptors[i, j].cpu().numpy()
-                    for receptor_idx, activation in enumerate(receptor_acts):
-                        if activation > 0.1:  # Only store significant activations
-                            token_activations[receptor_idx].append((token, activation))
-    
-    results = {}
-    
-    # 1. Receptor activation heatmap per entity type
-    print("Creating receptor activation heatmap...")
-    fig, ax = plt.subplots(figsize=(12, 6))
-    
-    entity_types = sorted(receptor_activations_by_entity.keys())
-    mean_activations = []
-    
-    for entity in entity_types:
-        acts = np.array(receptor_activations_by_entity[entity])
-        mean_act = acts.mean(axis=0)
-        mean_activations.append(mean_act)
-    
-    mean_activations = np.array(mean_activations)
-    
-    sns.heatmap(mean_activations, 
-                xticklabels=range(0, mean_activations.shape[1], 10),
+                        entity_type = label.split('-', 1)[-1]
+                        if receptors is not None:
+                            arr = receptors[i, t].cpu().numpy()
+                            receptor_by_entity[entity_type].append(arr)
+                            # track top token→receptor activations
+                            token_str = idx2word.get(
+                                int(sentences[i, t].item()), '<unk>')
+                            for r_idx, act in enumerate(arr):
+                                if act > 0.1:
+                                    token_receptor[r_idx].append(
+                                        (token_str, float(act)))
+                        if glomeruli is not None:
+                            glomeruli_by_entity[entity_type].append(
+                                glomeruli[i, t].cpu().numpy())
+
+    return {
+        'receptor':       dict(receptor_by_entity),
+        'glomeruli':      dict(glomeruli_by_entity),
+        'token_receptor': dict(token_receptor),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Plotting helpers
+# ---------------------------------------------------------------------------
+def _mean_matrix(by_entity: dict, entity_types: list) -> np.ndarray:
+    """[n_entities, n_units] mean activation matrix."""
+    return np.array([
+        np.mean(by_entity[e], axis=0)
+        for e in entity_types if e in by_entity
+    ])
+
+
+def plot_heatmap(matrix: np.ndarray, entity_types: list, layer_name: str,
+                 title: str, save_path: Path):
+    if matrix.size == 0:
+        return
+    n_units = matrix.shape[1]
+    step    = max(1, n_units // 32)
+    xlabels = [str(i) if i % step == 0 else '' for i in range(n_units)]
+
+    fig, ax = plt.subplots(figsize=(max(14, n_units // 4),
+                                    max(4, len(entity_types) + 1)))
+    sns.heatmap(matrix,
                 yticklabels=entity_types,
+                xticklabels=xlabels,
                 cmap='YlOrRd',
                 cbar_kws={'label': 'Mean Activation'},
                 ax=ax)
-    ax.set_xlabel('Receptor Index')
-    ax.set_ylabel('Entity Type')
-    
-    title = 'Mean Receptor Activations by Entity Type'
-    if experiment_name:
-        title += f'\n({experiment_name})'
-    ax.set_title(title)
-    
+    ax.set_title(title, fontsize=13, fontweight='bold', pad=10)
+    ax.set_xlabel(f'{layer_name} Unit Index', fontsize=11)
+    ax.set_ylabel('Entity Type', fontsize=11)
     plt.tight_layout()
-    plt.savefig(os.path.join(save_dir, 'receptor_heatmap.png'), dpi=300, bbox_inches='tight')
+    plt.savefig(save_path, dpi=180, bbox_inches='tight')
     plt.close()
-    
-    results['mean_activations'] = mean_activations
-    results['entity_types'] = entity_types
-    
-    # 1b. Glomeruli activation heatmap per entity type
-    print("Creating glomeruli activation heatmap...")
-    fig_g, ax_g = plt.subplots(figsize=(12, 6))
-    
-    mean_glomeruli_activations = []
-    
+    print(f"  ✓ Heatmap → {save_path.name}")
+
+
+def compute_rsi(mean_matrix: np.ndarray) -> list:
+    """Compute Receptor Selectivity Index per unit."""
+    rsi = []
+    for u in range(mean_matrix.shape[1]):
+        mus    = mean_matrix[:, u]
+        mx, mn = mus.max(), mus.min()
+        rsi.append(float((mx - mn) / mx) if mx > 1e-6 else 0.0)
+    return rsi
+
+
+def plot_rsi_histogram(rsi_scores: list, layer_name: str,
+                       title: str, save_path: Path, color: str = 'purple'):
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.hist(rsi_scores, bins=20, color=color, alpha=0.75, edgecolor='black')
+    ax.set_xlabel(f'{layer_name} Selectivity Index (RSI)', fontsize=11)
+    ax.set_ylabel('Count', fontsize=11)
+    ax.set_title(title, fontsize=12, fontweight='bold')
+    ax.grid(axis='y', alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=180, bbox_inches='tight')
+    plt.close()
+    print(f"  ✓ RSI histogram → {save_path.name}")
+
+
+def plot_tsne(glomeruli_by_entity: dict, entity_types: list,
+              title: str, save_path: Path, max_per_entity: int = 200):
+    from sklearn.manifold import TSNE
+
+    all_vecs, all_labels = [], []
     for entity in entity_types:
-        acts = np.array(glomeruli_activations_by_entity[entity])
-        mean_act = acts.mean(axis=0)
-        mean_glomeruli_activations.append(mean_act)
-    
-    mean_glomeruli_activations = np.array(mean_glomeruli_activations)
-    
-    sns.heatmap(mean_glomeruli_activations, 
-                xticklabels=range(0, mean_glomeruli_activations.shape[1], 10),
-                yticklabels=entity_types,
-                cmap='YlOrRd',
-                cbar_kws={'label': 'Mean Activation'},
-                ax=ax_g)
-    ax_g.set_xlabel('Glomerulus Index')
-    ax_g.set_ylabel('Entity Type')
-    
-    title_g = 'Mean Glomeruli Activations by Entity Type'
-    if experiment_name:
-        title_g += f'\n({experiment_name})'
-    ax_g.set_title(title_g)
-    
-    plt.tight_layout()
-    plt.savefig(os.path.join(save_dir, 'glomeruli_heatmap.png'), dpi=300, bbox_inches='tight')
-    plt.close()
+        acts = glomeruli_by_entity.get(entity, [])
+        n    = min(max_per_entity, len(acts))
+        if n == 0:
+            continue
+        all_vecs.extend(acts[:n])
+        all_labels.extend([entity] * n)
 
-    results['mean_glomeruli_activations'] = mean_glomeruli_activations
-    
-    # Glomerular Metrics (RSI and Sparsity)
-    num_glomeruli = mean_glomeruli_activations.shape[1]
-    g_rsi_scores = []
-    for g in range(num_glomeruli):
-        mus = mean_glomeruli_activations[:, g]
-        max_mu = mus.max()
-        min_mu = mus.min()
-        g_rsi = (max_mu - min_mu) / max_mu if max_mu > 1e-6 else 0.0
-        g_rsi_scores.append(g_rsi)
-        
-    results['glomeruli_avg_rsi'] = float(np.mean(g_rsi_scores))
-    
-    # Plot Glomeruli RSI
-    plt.figure(figsize=(8, 5))
-    plt.hist(g_rsi_scores, bins=20, color='orange', alpha=0.7, edgecolor='black')
-    plt.xlabel('Glomerular Selectivity Index (RSI)')
-    plt.ylabel('Count')
-    title_g_rsi = 'Distribution of Glomerular Selectivity Index'
-    if experiment_name: title_g_rsi += f'\n({experiment_name})'
-    plt.title(title_g_rsi)
-    plt.grid(axis='y', alpha=0.3)
-    plt.tight_layout()
-    plt.savefig(os.path.join(save_dir, 'glomeruli_rsi_distribution.png'), dpi=300, bbox_inches='tight')
-    plt.close()
-    
-    all_g_acts = []
-    for entity, acts in glomeruli_activations_by_entity.items():
-        all_g_acts.extend(acts)
-    all_g_acts = np.array(all_g_acts)
-    
-    if len(all_g_acts) > 0:
-        results['glomeruli_sparsity'] = float((all_g_acts > 0.1).mean())
-        active_g_acts = all_g_acts[all_g_acts > 0.1]
-        results['glomeruli_avg_activation'] = float(active_g_acts.mean()) if len(active_g_acts) > 0 else 0.0
-    else:
-        results['glomeruli_sparsity'] = 0.0
-        results['glomeruli_avg_activation'] = 0.0
-
-    
-    # 1c. Mitral activation heatmap
-    if len(mitral_activations_by_entity) > 0 and len(mitral_activations_by_entity[list(entity_types)[0]]) > 0:
-        print("Creating mitral activation heatmap...")
-        fig_m, ax_m = plt.subplots(figsize=(12, 6))
-        
-        mean_mitral_activations = []
-        for entity in entity_types:
-            acts = np.array(mitral_activations_by_entity[entity])
-            mean_mitral_activations.append(acts.mean(axis=0))
-        mean_mitral_activations = np.array(mean_mitral_activations)
-        
-        sns.heatmap(mean_mitral_activations, 
-                    xticklabels=range(0, mean_mitral_activations.shape[1], 10),
-                    yticklabels=entity_types,
-                    cmap='YlOrRd',
-                    cbar_kws={'label': 'Mean Activation'},
-                    ax=ax_m)
-        ax_m.set_xlabel('Mitral Index')
-        ax_m.set_ylabel('Entity Type')
-        title_m = 'Mean Mitral Activations by Entity Type'
-        if experiment_name: title_m += f'\n({experiment_name})'
-        ax_m.set_title(title_m)
-        num_mitrals = mean_mitral_activations.shape[1]
-        
-        plt.tight_layout()
-        plt.savefig(os.path.join(save_dir, 'mitral_heatmap.png'), dpi=300, bbox_inches='tight')
-        plt.close()
-        
-        results['mean_mitral_activations'] = mean_mitral_activations
-        
-        # Mitral Metrics
-        m_rsi_scores = []
-        for r in range(num_mitrals):
-            mus = mean_mitral_activations[:, r]
-            max_mu = mus.max()
-            min_mu = mus.min()
-            m_rsi = (max_mu - min_mu) / max_mu if max_mu > 1e-6 else 0.0
-            m_rsi_scores.append(m_rsi)
-            
-        results['mitral_avg_rsi'] = float(np.mean(m_rsi_scores))
-        
-        # Plot Mitral RSI
-        plt.figure(figsize=(8, 5))
-        plt.hist(m_rsi_scores, bins=20, color='teal', alpha=0.7, edgecolor='black')
-        plt.xlabel('Mitral Selectivity Index (RSI)')
-        plt.ylabel('Count')
-        title_m_rsi = 'Distribution of Mitral Selectivity Index'
-        if experiment_name: title_m_rsi += f'\n({experiment_name})'
-        plt.title(title_m_rsi)
-        plt.grid(axis='y', alpha=0.3)
-        plt.tight_layout()
-        plt.savefig(os.path.join(save_dir, 'mitral_rsi_distribution.png'), dpi=300, bbox_inches='tight')
-        plt.close()
-        
-        all_m_acts = []
-        for entity, acts in mitral_activations_by_entity.items():
-            all_m_acts.extend(acts)
-        all_m_acts = np.array(all_m_acts)
-        
-        if len(all_m_acts) > 0:
-            results['mitral_sparsity'] = float((all_m_acts > 0.1).mean())
-            active_m_acts = all_m_acts[all_m_acts > 0.1]
-            results['mitral_avg_activation'] = float(active_m_acts.mean()) if len(active_m_acts) > 0 else 0.0
-        else:
-            results['mitral_sparsity'] = 0.0
-            results['mitral_avg_activation'] = 0.0
-    
-    # 2. Top activating tokens per receptor
-    print("Finding top activating tokens per receptor...")
-    top_k = 10
-    receptor_interpretations = {}
-    
-    for receptor_idx, token_acts in token_activations.items():
-        if len(token_acts) > 0:
-            # Sort by activation
-            top_tokens = sorted(token_acts, key=lambda x: x[1], reverse=True)[:top_k]
-            receptor_interpretations[int(receptor_idx)] = [
-                {'token': token, 'activation': float(act)} 
-                for token, act in top_tokens
-            ]
-    
-    results['receptor_interpretations'] = receptor_interpretations
-    
-    # Print some examples
-    print("\nTop 5 receptors and their top tokens:")
-    for receptor_idx in sorted(receptor_interpretations.keys())[:5]:
-        print(f"\nReceptor {receptor_idx}:")
-        for item in receptor_interpretations[receptor_idx][:5]:
-            print(f"  {item['token']}: {item['activation']:.3f}")
-    
-    # 3. t-SNE visualization of glomerular representations
-    print("\nCreating t-SNE visualization...")
-    
-    # Sample for t-SNE (use at most 1000 points for speed)
-    all_glomeruli = []
-    all_labels = []
-    
-    for entity, acts in glomeruli_activations_by_entity.items():
-        sample_size = min(200, len(acts))
-        sampled_acts = np.array(acts[:sample_size])
-        all_glomeruli.append(sampled_acts)
-        all_labels.extend([entity] * sample_size)
-    
-    all_glomeruli = np.concatenate(all_glomeruli, axis=0)
-    
-    # Apply t-SNE
-    tsne = TSNE(n_components=2, random_state=42, perplexity=30)
-    glomeruli_2d = tsne.fit_transform(all_glomeruli)
-    
-    # Plot
-    fig, ax = plt.subplots(figsize=(10, 8))
-    
-    colors = plt.cm.tab10(np.linspace(0, 1, len(entity_types)))
-    for i, entity in enumerate(entity_types):
-        indices = [j for j, label in enumerate(all_labels) if label == entity]
-        ax.scatter(glomeruli_2d[indices, 0], 
-                  glomeruli_2d[indices, 1],
-                  c=[colors[i]], 
-                  label=entity, 
-                  alpha=0.6, 
-                  s=50)
-    
-    ax.set_xlabel('t-SNE Dimension 1')
-    ax.set_ylabel('t-SNE Dimension 2')
-    
-    title = 't-SNE Visualization of Glomerular Representations'
-    if experiment_name:
-        title += f'\n({experiment_name})'
-    ax.set_title(title)
-    
-    ax.legend()
-    plt.tight_layout()
-    plt.savefig(os.path.join(save_dir, 'glomeruli_tsne.png'), dpi=300, bbox_inches='tight')
-    plt.close()
-    
-    # 4. Compute receptor specialization metrics
-    print("\nComputing receptor specialization metrics...")
-    
-    # Sparsity: what fraction of receptors are active on average?
-    all_receptor_acts = []
-    for entity, acts in receptor_activations_by_entity.items():
-        all_receptor_acts.extend(acts)
-    all_receptor_acts = np.array(all_receptor_acts)
-    
-    sparsity = (all_receptor_acts > 0.1).mean()
-    avg_activation = all_receptor_acts[all_receptor_acts > 0.1].mean() if all_receptor_acts.max() > 0.1 else 0
-    
-    results['sparsity'] = float(sparsity)
-    results['avg_activation'] = float(avg_activation)
-    
-    print(f"Receptor activation sparsity: {sparsity:.2%}")
-    print(f"Average activation (when active): {avg_activation:.3f}")
-    
-    # Entity-specific activation patterns
-    entity_specificity = {}
-    
-    # Calculate Receptor Selectivity Index (RSI)
-    # RSI(r) = (max_e(mu_{r,e}) - min_e(mu_{r,e})) / max_e(mu_{r,e})
-    
-    num_receptors = mean_activations.shape[1]
-    rsi_scores = []
-    
-    for r in range(num_receptors):
-        mus = mean_activations[:, r] # Mean activations for receptor r across all entities
-        max_mu = mus.max()
-        min_mu = mus.min()
-        
-        if max_mu > 1e-6: # Avoid division by zero
-            rsi = (max_mu - min_mu) / max_mu
-        else:
-            rsi = 0.0
-        rsi_scores.append(rsi)
-    
-    avg_rsi = np.mean(rsi_scores)
-    results['avg_rsi'] = float(avg_rsi)
-    results['rsi_scores'] = [float(x) for x in rsi_scores]
-    
-    print(f"Average Receptor Selectivity Index (RSI): {avg_rsi:.4f}")
-    
-    # Plot RSI Distribution
-    plt.figure(figsize=(8, 5))
-    plt.hist(rsi_scores, bins=20, color='purple', alpha=0.7, edgecolor='black')
-    plt.xlabel('Receptor Selectivity Index (RSI)')
-    plt.ylabel('Count')
-    title = 'Distribution of Receptor Selectivity Index'
-    if experiment_name:
-        title += f'\n({experiment_name})'
-    plt.title(title)
-    plt.grid(axis='y', alpha=0.3)
-    plt.tight_layout()
-    plt.savefig(os.path.join(save_dir, 'rsi_distribution.png'), dpi=300, bbox_inches='tight')
-    plt.close()
-
-    for entity in entity_types:
-        acts = np.array(receptor_activations_by_entity[entity])
-        entity_mean = acts.mean(axis=0)
-        
-        # Compute variance to find specialized receptors
-        variance = entity_mean.var()
-        entity_specificity[entity] = float(variance)
-    
-    results['entity_specificity'] = entity_specificity
-    
-    # Save results
-    import json
-    with open(os.path.join(save_dir, 'receptor_analysis.json'), 'w') as f:
-        # Convert numpy arrays to lists for JSON
-        save_results = {
-            'entity_types': results['entity_types'],
-            'sparsity': results['sparsity'],
-            'avg_activation': results['avg_activation'],
-            'entity_specificity': results['entity_specificity'],
-            'receptor_interpretations': results['receptor_interpretations']
-        }
-        if 'glomeruli_sparsity' in results:
-            save_results['glomeruli_sparsity'] = results['glomeruli_sparsity']
-            save_results['glomeruli_avg_activation'] = results['glomeruli_avg_activation']
-            save_results['glomeruli_avg_rsi'] = results['glomeruli_avg_rsi']
-        if 'mitral_sparsity' in results:
-            save_results['mitral_sparsity'] = results['mitral_sparsity']
-            save_results['mitral_avg_activation'] = results['mitral_avg_activation']
-            save_results['mitral_avg_rsi'] = results['mitral_avg_rsi']
-        json.dump(save_results, f, indent=2)
-    
-    print(f"\n✓ Analysis complete! Results saved to {save_dir}")
-    
-    return results
-
-
-def compare_models(results_dirs, save_dir='./comparison'):
-    """
-    Compare results from multiple experiments.
-    
-    Args:
-        results_dirs: Dict mapping experiment name to results directory
-        save_dir: Where to save comparison visualizations
-    """
-    os.makedirs(save_dir, exist_ok=True)
-    
-    import json
-    
-    # Load all results
-    all_results = {}
-    for name, results_dir in results_dirs.items():
-        results_path = os.path.join(results_dir, 'results.json')
-        if os.path.exists(results_path):
-            with open(results_path, 'r') as f:
-                all_results[name] = json.load(f)
-    
-    if not all_results:
-        print("No results found!")
+    if not all_vecs:
+        print("  ⚠  No glomeruli activations for t-SNE — skipping.")
         return
-    
-    # Extract test F1 scores
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-    
-    # Overall F1 comparison
-    names = list(all_results.keys())
-    f1_scores = [all_results[name]['test']['f1'] for name in names]
-    
-    axes[0].bar(range(len(names)), f1_scores, color='skyblue', edgecolor='black')
-    axes[0].set_xticks(range(len(names)))
-    axes[0].set_xticklabels(names, rotation=45, ha='right')
-    axes[0].set_ylabel('F1 Score')
-    axes[0].set_title('Test F1 Score Comparison')
-    axes[0].set_ylim([min(f1_scores) - 0.02, max(f1_scores) + 0.02])
-    axes[0].grid(axis='y', alpha=0.3)
-    
-    # Per-entity F1 comparison
-    entity_types = list(all_results[names[0]]['test']['per_entity'].keys())
-    x = np.arange(len(entity_types))
-    width = 0.8 / len(names)
-    
-    for i, name in enumerate(names):
-        per_entity = all_results[name]['test']['per_entity']
-        scores = [per_entity.get(entity, 0) for entity in entity_types]
-        axes[1].bar(x + i * width, scores, width, label=name, alpha=0.8)
-    
-    axes[1].set_xlabel('Entity Type')
-    axes[1].set_ylabel('F1 Score')
-    axes[1].set_title('Per-Entity F1 Score Comparison')
-    axes[1].set_xticks(x + width * (len(names) - 1) / 2)
-    axes[1].set_xticklabels(entity_types)
-    axes[1].legend()
-    axes[1].grid(axis='y', alpha=0.3)
-    
+
+    X = np.array(all_vecs)
+    perp = min(30, max(5, len(X) // 5))
+    tsne = TSNE(n_components=2, random_state=42, perplexity=perp)
+    X2   = tsne.fit_transform(X)
+
+    palette = plt.cm.tab10(np.linspace(0, 0.9, len(entity_types)))
+    fig, ax = plt.subplots(figsize=(9, 7))
+    for i, entity in enumerate(entity_types):
+        idx = [j for j, lb in enumerate(all_labels) if lb == entity]
+        if not idx:
+            continue
+        ax.scatter(X2[idx, 0], X2[idx, 1],
+                   c=[palette[i]], label=entity,
+                   alpha=0.65, s=40, edgecolors='none')
+
+    ax.set_xlabel('t-SNE dim 1', fontsize=11)
+    ax.set_ylabel('t-SNE dim 2', fontsize=11)
+    ax.set_title(title, fontsize=12, fontweight='bold')
+    ax.legend(title='Entity', bbox_to_anchor=(1.01, 1), loc='upper left')
     plt.tight_layout()
-    plt.savefig(os.path.join(save_dir, 'model_comparison.png'), dpi=300, bbox_inches='tight')
+    plt.savefig(save_path, dpi=180, bbox_inches='tight')
     plt.close()
-    
-    # Create comparison table
-    print("\n" + "="*60)
-    print("Model Comparison")
-    print("="*60)
-    print(f"{'Model':<25} {'Test F1':<10} {'Precision':<12} {'Recall':<10}")
-    print("-"*60)
-    
-    for name in names:
-        test = all_results[name]['test']
-        print(f"{name:<25} {test['f1']:<10.4f} {test['precision']:<12.4f} {test['recall']:<10.4f}")
-    
-    print("="*60)
-    
-    print(f"\n✓ Comparison saved to {save_dir}")
+    print(f"  ✓ t-SNE → {save_path.name}")
 
 
-def analyze_lstm_rsi(model, data_loader, vocab_info, device, save_dir='./analysis', experiment_name=None):
-    """
-    Compute RSI for the BiLSTM hidden states.
-    This provides a baseline to compare against the Olfactory receptor/glomerular RSI.
-    """
-    model.eval()
-    os.makedirs(save_dir, exist_ok=True)
-    
-    idx2word = vocab_info['idx2word']
-    idx2label = vocab_info['idx2label']
-    
-    print("Collecting LSTM activations...")
-    lstm_activations_by_entity = defaultdict(list)
-    
-    with torch.no_grad():
-        for sentences, tags, lengths in data_loader:
-            sentences = sentences.to(device)
-            # Ensure model has get_lstm_activations
-            if not hasattr(model, 'get_lstm_activations'):
-                print("Model does not support get_lstm_activations.")
-                return None
-                
-            lstm_out = model.get_lstm_activations(sentences, lengths)
-            
-            for i in range(len(sentences)):
-                length = lengths[i].item()
-                for j in range(length):
-                    label = idx2label[tags[i, j].item()]
-                    if label != 'O':
-                        entity_type = label.split('-')[1] if '-' in label else label
-                        lstm_activations_by_entity[entity_type].append(
-                            lstm_out[i, j].cpu().numpy()
-                        )
-                        
-    entity_types = sorted(lstm_activations_by_entity.keys())
+def save_top_tokens(token_receptor: dict, save_path: Path, top_k: int = 10):
+    """Save top-k tokens per receptor index as JSON."""
+    out = {}
+    for r_idx, pairs in token_receptor.items():
+        top = sorted(pairs, key=lambda x: x[1], reverse=True)[:top_k]
+        out[int(r_idx)] = [{'token': t, 'activation': a} for t, a in top]
+
+    with open(save_path, 'w') as f:
+        json.dump(out, f, indent=2)
+    print(f"  ✓ Top tokens → {save_path.name}")
+
+
+# ---------------------------------------------------------------------------
+# Process one (dataset, exp_type) best seed
+# ---------------------------------------------------------------------------
+def process_entry(entry: dict, vocab_info: dict,
+                  test_loader, device, output_dir: Path):
+    dataset  = entry['dataset']
+    exp_type = entry['exp_type']
+    config   = entry['config']
+    model_type = config.get('model_type', '')
+
+    if model_type not in OLFACTORY_EXP_TYPES and exp_type not in OLFACTORY_EXP_TYPES:
+        print(f"  ⚠  [{dataset}] {exp_type}: not olfactory — skipping.")
+        return
+
+    model_path = entry['model_path']
+    if not model_path.exists():
+        print(f"  ⚠  [{dataset}] {exp_type}: best_model.pt missing — skipping.")
+        return
+
+    print(f"\n[{dataset}] {exp_type}  (F1={entry['test_f1']:.4f}  seed={entry['seed_dir'].name})")
+
+    # Load checkpoint
+    try:
+        ckpt = torch.load(model_path, map_location=device, weights_only=False)
+    except Exception as e:
+        print(f"  ✗ Cannot load checkpoint: {e}")
+        return
+
+    state_dict = ckpt.get('model_state_dict', ckpt)
+
+    vocab_size = (state_dict['embedding.weight'].shape[0]
+                  if 'embedding.weight' in state_dict
+                  else len(vocab_info.get('word2idx', {})))
+    if 'hidden2tag.weight' in state_dict:
+        num_tags = state_dict['hidden2tag.weight'].shape[0]
+    elif 'output_layer.weight' in state_dict:
+        num_tags = state_dict['output_layer.weight'].shape[0]
+    else:
+        num_tags = len(vocab_info.get('label2idx', {}))
+
+    # Label mapping
+    if 'label2idx' in ckpt:
+        idx2label = {v: k for k, v in ckpt['label2idx'].items()}
+    elif 'label2idx' in vocab_info:
+        idx2label = {v: k for k, v in vocab_info['label2idx'].items()}
+    else:
+        idx2label = {i: str(i) for i in range(num_tags)}
+
+    idx2word = vocab_info.get('idx2word', {})
+
+    # Build & load model
+    try:
+        from src.model.olfactory_ner import create_olfactory_ner
+        model = create_olfactory_ner(vocab_size, num_tags, config)
+        model.load_state_dict(state_dict, strict=False)
+        model = model.to(device)
+        model.eval()
+    except Exception as e:
+        print(f"  ✗ Cannot instantiate model: {e}")
+        return
+
+    # Collect activations
+    print("  Collecting activations …")
+    acts = collect_activations(model, test_loader, device, idx2label, idx2word)
+
+    # Entity types (excluding aggregate rows)
+    skip_entities = {'micro avg', 'macro avg', 'weighted avg', 'O'}
+    entity_types = sorted(
+        (e for e in set(list(acts['receptor'].keys()) +
+                        list(acts['glomeruli'].keys()))
+         if e not in skip_entities)
+    )
     if not entity_types:
-        return None
-        
-    # Calculate Mean Activations
-    mean_activations = []
-    for entity in entity_types:
-        acts = np.array(lstm_activations_by_entity[entity])
-        mean_activations.append(acts.mean(axis=0))
-    
-    mean_activations = np.array(mean_activations)
-    num_units = mean_activations.shape[1]
-    
-    # Calculate RSI
-    print("Computing LSTM RSI...")
-    rsi_scores = []
-    for u in range(num_units):
-        mus = mean_activations[:, u]
-        max_mu = mus.max()
-        min_mu = mus.min()
-        
-        if max_mu > 1e-6:
-            rsi = (max_mu - min_mu) / max_mu
-        else:
-            rsi = 0.0
-        rsi_scores.append(rsi)
-        
-    avg_rsi = float(np.mean(rsi_scores))
-    print(f"Average LSTM RSI: {avg_rsi:.4f}")
-    
-    # Plot LSTM RSI Distribution
-    plt.figure(figsize=(8, 5))
-    plt.hist(rsi_scores, bins=20, color='gray', alpha=0.7, edgecolor='black')
-    plt.xlabel('LSTM Selectivity Index (RSI)')
-    plt.ylabel('Count')
-    title = 'Distribution of LSTM Selectivity Index (Baseline)'
-    if experiment_name:
-        title += f'\n({experiment_name})'
-    plt.title(title)
-    plt.grid(axis='y', alpha=0.3)
-    plt.tight_layout()
-    plt.savefig(os.path.join(save_dir, 'lstm_rsi_distribution.png'), dpi=300, bbox_inches='tight')
-    plt.close()
-    
-    results = {
-        'avg_rsi': avg_rsi,
-        'rsi_scores': rsi_scores,
-        'entity_types': entity_types
-    }
-    
-    import json
-    with open(os.path.join(save_dir, 'lstm_analysis.json'), 'w') as f:
-        json.dump(results, f, indent=2)
-        
-    print(f"✓ LSTM Analysis complete! Results saved to {save_dir}")
-    return results
+        print("  ⚠  No entity activations collected — skipping.")
+        return
+
+    # Output file prefix
+    safe_ds = dataset.replace('/', '_')
+    prefix  = output_dir / f"{safe_ds}__{exp_type}"
+    f1_tag  = f"F1={entry['test_f1']:.4f}"
+
+    # ── 1. Receptor heatmap ─────────────────────────────────────────────
+    if acts['receptor']:
+        valid = [e for e in entity_types if e in acts['receptor']]
+        r_matrix = _mean_matrix(acts['receptor'], valid)
+        plot_heatmap(
+            r_matrix, valid, 'Receptor',
+            title=f"Receptor Activations — {dataset} / {exp_type}  ({f1_tag})",
+            save_path=Path(str(prefix) + '__receptor_heatmap.png'),
+        )
+
+        # RSI
+        rsi_r = compute_rsi(r_matrix)
+        print(f"  Receptor avg RSI: {np.mean(rsi_r):.4f}")
+        plot_rsi_histogram(
+            rsi_r, 'Receptor',
+            title=f"Receptor RSI — {dataset} / {exp_type}  ({f1_tag})",
+            save_path=Path(str(prefix) + '__receptor_rsi.png'),
+            color='purple',
+        )
+
+    # ── 2. Glomeruli heatmap ────────────────────────────────────────────
+    if acts['glomeruli']:
+        valid = [e for e in entity_types if e in acts['glomeruli']]
+        g_matrix = _mean_matrix(acts['glomeruli'], valid)
+        plot_heatmap(
+            g_matrix, valid, 'Glomerulus',
+            title=f"Glomeruli Activations — {dataset} / {exp_type}  ({f1_tag})",
+            save_path=Path(str(prefix) + '__glomeruli_heatmap.png'),
+        )
+
+        # RSI
+        rsi_g = compute_rsi(g_matrix)
+        print(f"  Glomeruli avg RSI: {np.mean(rsi_g):.4f}")
+        plot_rsi_histogram(
+            rsi_g, 'Glomerulus',
+            title=f"Glomeruli RSI — {dataset} / {exp_type}  ({f1_tag})",
+            save_path=Path(str(prefix) + '__glomeruli_rsi.png'),
+            color='orange',
+        )
+
+        # t-SNE
+        plot_tsne(
+            acts['glomeruli'], valid,
+            title=f"t-SNE of Glomeruli — {dataset} / {exp_type}  ({f1_tag})",
+            save_path=Path(str(prefix) + '__tsne.png'),
+        )
+
+    # ── 3. Top tokens per receptor ──────────────────────────────────────
+    if acts['token_receptor']:
+        save_top_tokens(
+            acts['token_receptor'],
+            save_path=Path(str(prefix) + '__top_tokens.json'),
+        )
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+def main():
+    parser = argparse.ArgumentParser(
+        description='Visualize receptor/glomeruli activations (best-seed per experiment)'
+    )
+    parser.add_argument('--results_dir', type=str, required=True,
+                        help='Root dir of experiment results')
+    parser.add_argument('--output_dir',  type=str, required=True,
+                        help='Where to save output files')
+    parser.add_argument('--data_dir',    type=str, required=True,
+                        help='Directory with raw dataset files')
+    parser.add_argument('--batch_size',  type=int, default=32)
+    parser.add_argument('--no_cuda',     action='store_true')
+    args = parser.parse_args()
+
+    device = torch.device('cpu' if args.no_cuda or not torch.cuda.is_available()
+                          else 'cuda')
+
+    print(f"\n{'='*70}")
+    print("RECEPTOR / GLOMERULI VISUALIZATIONS — BEST SEED PER EXPERIMENT")
+    print('='*70)
+    print(f"Results dir : {args.results_dir}")
+    print(f"Output dir  : {args.output_dir}")
+    print(f"Data dir    : {args.data_dir}")
+    print(f"Device      : {device}")
+    print('='*70)
+
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Load data
+    print("\nLoading dataset …")
+    try:
+        from src.data.dataset import prepare_data
+        _, _, test_loader, vocab_info = prepare_data(
+            data_dir=args.data_dir,
+            batch_size=args.batch_size,
+            min_freq=2,
+        )
+        print(f"✓ Test loader ready ({len(test_loader.dataset)} samples)")
+    except Exception as e:
+        print(f"✗ Failed to load data: {e}")
+        return
+
+    # Find best seeds
+    print("\nFinding best seed per (dataset, experiment) …")
+    results_dir = Path(args.results_dir)
+    all_entries = find_best_seeds(results_dir)
+
+    olf_entries = [e for e in all_entries if e['exp_type'] in OLFACTORY_EXP_TYPES]
+    print(f"\nProcessing {len(olf_entries)} olfactory-type experiment(s) …")
+
+    print(f"\n{'='*70}")
+    print("GENERATING VISUALIZATIONS")
+    print('='*70)
+
+    for entry in olf_entries:
+        process_entry(entry, vocab_info, test_loader, device, output_dir)
+
+    print(f"\n{'='*70}")
+    print(f"DONE — outputs saved to: {output_dir}")
+    print('='*70)
 
 
 if __name__ == '__main__':
-    print("Receptor analysis module loaded.")
-    print("Use analyze_receptor_activations() to analyze a trained model.")
+    main()
