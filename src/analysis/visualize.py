@@ -9,6 +9,10 @@ is used to generate:
   4. t-SNE of glomerular representations coloured by entity type
   5. Top-activating tokens per receptor (saved as JSON)
 
+Key fix: each model is run against its OWN test split (re-loaded from the
+dataset/language in its results.json config).  WikiANN models are NOT evaluated
+on CoNLL data.
+
 Expected directory layout:
     <results_dir>/<dataset_key>/<exp_type>/seed_<N>/
         results.json
@@ -18,7 +22,7 @@ Usage:
     python src/analysis/visualize.py \
         --results_dir "/content/drive/My Drive/olfaction_inspired_ner/low_resource_exp" \
         --output_dir  "/content/drive/My Drive/olfaction_inspired_ner/analysis_outputs/visualize" \
-        --data_dir    "/content/drive/My Drive/olfaction_inspired_ner/data"
+        --cache_dir   "/content/drive/My Drive/olfaction_inspired_ner/data"
 """
 
 import argparse
@@ -48,12 +52,11 @@ KNOWN_EXP_TYPES = {
     'baseline', 'olfactory', 'receptors_only',
     'no_sparsity', 'more_receptors', 'more_glomeruli',
 }
-
 OLFACTORY_EXP_TYPES = KNOWN_EXP_TYPES - {'baseline'}
 
 
 # ---------------------------------------------------------------------------
-# Scanning — identical logic as generate_heatmaps.py
+# Scanning — pick best-F1 seed per (dataset, exp_type)
 # ---------------------------------------------------------------------------
 def _test_f1(json_path: Path) -> float:
     try:
@@ -66,7 +69,6 @@ def _test_f1(json_path: Path) -> float:
 
 
 def find_best_seeds(results_dir: Path) -> list:
-    """Return one entry per (dataset, exp_type) with the best-F1 seed."""
     raw = defaultdict(lambda: defaultdict(list))
 
     for json_path in sorted(results_dir.rglob('results.json')):
@@ -115,22 +117,60 @@ def find_best_seeds(results_dir: Path) -> list:
 
 
 # ---------------------------------------------------------------------------
+# Build per-experiment test loader
+# ---------------------------------------------------------------------------
+def build_test_loader(config: dict, cache_dir: str, batch_size: int = 32):
+    """
+    Load the test split that matches this model's training data.
+    Returns (test_loader, vocab_info) or (None, None) on failure.
+    """
+    from src.data.unified_loader import get_dataset
+
+    dataset_name = config.get('dataset', 'conll2003')
+    language     = config.get('language', None)
+    min_freq     = config.get('min_freq', 2)
+    max_train    = config.get('max_train_samples', None)
+
+    print(f"    Loading data: dataset={dataset_name}  language={language}")
+    try:
+        _, _, test_loader, vocab_info = get_dataset(
+            dataset_name=dataset_name,
+            language=language,
+            cache_dir=cache_dir,
+            batch_size=batch_size,
+            min_freq=min_freq,
+            max_train_samples=max_train,
+        )
+        print(f"    ✓ Test loader: {len(test_loader.dataset)} samples  "
+              f"|  labels={list(vocab_info['idx2label'].values())}")
+        return test_loader, vocab_info
+    except Exception as e:
+        print(f"    ✗ Failed to load data: {e}")
+        return None, None
+
+
+# ---------------------------------------------------------------------------
 # Activation collection
 # ---------------------------------------------------------------------------
-def collect_activations(model, data_loader, device, idx2label: dict,
-                        idx2word: dict) -> dict:
+def collect_activations(model, data_loader, device,
+                        idx2label: dict, idx2word: dict) -> dict:
     """
-    Run model through test_loader and return raw per-token activations.
+    Run model through test_loader; return per-token activation lists.
 
-    Returns dict with keys:
-        'receptor':   {entity_type: list of 1-D numpy arrays}
-        'glomeruli':  {entity_type: list of 1-D numpy arrays}
-        'token_receptor': {receptor_idx: [(token_str, activation_val), …]}
+    Returns:
+        {
+          'receptor':       {entity_type: [1-D arrays]},
+          'glomeruli':      {entity_type: [1-D arrays]},
+          'token_receptor': {receptor_idx: [(token_str, act_val), …]},
+        }
     """
     model.eval()
     receptor_by_entity  = defaultdict(list)
     glomeruli_by_entity = defaultdict(list)
-    token_receptor      = defaultdict(list)   # receptor_idx → [(token, act)]
+    token_receptor      = defaultdict(list)
+
+    first_exc   = None
+    n_good      = 0
 
     with torch.no_grad():
         for batch in data_loader:
@@ -141,32 +181,35 @@ def collect_activations(model, data_loader, device, idx2label: dict,
 
             try:
                 receptors, glomeruli, _ = model.get_receptor_activations(sentences)
-            except Exception:
-                return {
-                    'receptor':       {},
-                    'glomeruli':      {},
-                    'token_receptor': {},
-                }
+            except Exception as e:
+                if first_exc is None:
+                    first_exc = e
+                continue  # skip this batch
+
+            n_good += 1
 
             for i, length in enumerate(lengths):
                 L = int(length.item())
                 for t in range(L):
                     label = idx2label.get(int(tags[i, t].item()), 'O')
-                    if label != 'O':
-                        entity_type = label.split('-', 1)[-1]
-                        if receptors is not None:
-                            arr = receptors[i, t].cpu().numpy()
-                            receptor_by_entity[entity_type].append(arr)
-                            # track top token→receptor activations
-                            token_str = idx2word.get(
-                                int(sentences[i, t].item()), '<unk>')
-                            for r_idx, act in enumerate(arr):
-                                if act > 0.1:
-                                    token_receptor[r_idx].append(
-                                        (token_str, float(act)))
-                        if glomeruli is not None:
-                            glomeruli_by_entity[entity_type].append(
-                                glomeruli[i, t].cpu().numpy())
+                    if label == 'O':
+                        continue
+                    entity_type = label.split('-', 1)[-1]
+
+                    if receptors is not None:
+                        arr = receptors[i, t].cpu().numpy()
+                        receptor_by_entity[entity_type].append(arr)
+                        tok = idx2word.get(int(sentences[i, t].item()), '<unk>')
+                        for r_idx, act in enumerate(arr):
+                            if act > 0.1:
+                                token_receptor[r_idx].append((tok, float(act)))
+
+                    if glomeruli is not None:
+                        glomeruli_by_entity[entity_type].append(
+                            glomeruli[i, t].cpu().numpy())
+
+    if first_exc and n_good == 0:
+        print(f"    ✗ get_receptor_activations failed: {first_exc}")
 
     return {
         'receptor':       dict(receptor_by_entity),
@@ -176,18 +219,15 @@ def collect_activations(model, data_loader, device, idx2label: dict,
 
 
 # ---------------------------------------------------------------------------
-# Plotting helpers
+# Plot helpers
 # ---------------------------------------------------------------------------
 def _mean_matrix(by_entity: dict, entity_types: list) -> np.ndarray:
-    """[n_entities, n_units] mean activation matrix."""
-    return np.array([
-        np.mean(by_entity[e], axis=0)
-        for e in entity_types if e in by_entity
-    ])
+    return np.array([np.mean(by_entity[e], axis=0)
+                     for e in entity_types if e in by_entity])
 
 
-def plot_heatmap(matrix: np.ndarray, entity_types: list, layer_name: str,
-                 title: str, save_path: Path):
+def plot_heatmap(matrix: np.ndarray, entity_types: list,
+                 layer_name: str, title: str, save_path: Path):
     if matrix.size == 0:
         return
     n_units = matrix.shape[1]
@@ -208,11 +248,10 @@ def plot_heatmap(matrix: np.ndarray, entity_types: list, layer_name: str,
     plt.tight_layout()
     plt.savefig(save_path, dpi=180, bbox_inches='tight')
     plt.close()
-    print(f"  ✓ Heatmap → {save_path.name}")
+    print(f"    ✓ {layer_name} heatmap → {save_path.name}")
 
 
 def compute_rsi(mean_matrix: np.ndarray) -> list:
-    """Compute Receptor Selectivity Index per unit."""
     rsi = []
     for u in range(mean_matrix.shape[1]):
         mus    = mean_matrix[:, u]
@@ -232,12 +271,16 @@ def plot_rsi_histogram(rsi_scores: list, layer_name: str,
     plt.tight_layout()
     plt.savefig(save_path, dpi=180, bbox_inches='tight')
     plt.close()
-    print(f"  ✓ RSI histogram → {save_path.name}")
+    print(f"    ✓ {layer_name} RSI histogram → {save_path.name}")
 
 
 def plot_tsne(glomeruli_by_entity: dict, entity_types: list,
               title: str, save_path: Path, max_per_entity: int = 200):
-    from sklearn.manifold import TSNE
+    try:
+        from sklearn.manifold import TSNE
+    except ImportError:
+        print("    ⚠  scikit-learn not available — skipping t-SNE.")
+        return
 
     all_vecs, all_labels = [], []
     for entity in entity_types:
@@ -249,7 +292,7 @@ def plot_tsne(glomeruli_by_entity: dict, entity_types: list,
         all_labels.extend([entity] * n)
 
     if not all_vecs:
-        print("  ⚠  No glomeruli activations for t-SNE — skipping.")
+        print("    ⚠  No glomeruli activations for t-SNE — skipping.")
         return
 
     X = np.array(all_vecs)
@@ -274,72 +317,66 @@ def plot_tsne(glomeruli_by_entity: dict, entity_types: list,
     plt.tight_layout()
     plt.savefig(save_path, dpi=180, bbox_inches='tight')
     plt.close()
-    print(f"  ✓ t-SNE → {save_path.name}")
+    print(f"    ✓ t-SNE → {save_path.name}")
 
 
 def save_top_tokens(token_receptor: dict, save_path: Path, top_k: int = 10):
-    """Save top-k tokens per receptor index as JSON."""
     out = {}
     for r_idx, pairs in token_receptor.items():
         top = sorted(pairs, key=lambda x: x[1], reverse=True)[:top_k]
         out[int(r_idx)] = [{'token': t, 'activation': a} for t, a in top]
-
     with open(save_path, 'w') as f:
         json.dump(out, f, indent=2)
-    print(f"  ✓ Top tokens → {save_path.name}")
+    print(f"    ✓ Top tokens → {save_path.name}")
 
 
 # ---------------------------------------------------------------------------
 # Process one (dataset, exp_type) best seed
 # ---------------------------------------------------------------------------
-def process_entry(entry: dict, vocab_info: dict,
-                  test_loader, device, output_dir: Path):
-    dataset  = entry['dataset']
-    exp_type = entry['exp_type']
-    config   = entry['config']
-    model_type = config.get('model_type', '')
+def process_entry(entry: dict, cache_dir: str,
+                  batch_size: int, device, output_dir: Path):
+    dataset    = entry['dataset']
+    exp_type   = entry['exp_type']
+    config     = entry['config']
+    model_path = entry['model_path']
 
-    if model_type not in OLFACTORY_EXP_TYPES and exp_type not in OLFACTORY_EXP_TYPES:
+    if exp_type not in OLFACTORY_EXP_TYPES:
         print(f"  ⚠  [{dataset}] {exp_type}: not olfactory — skipping.")
         return
 
-    model_path = entry['model_path']
     if not model_path.exists():
         print(f"  ⚠  [{dataset}] {exp_type}: best_model.pt missing — skipping.")
         return
 
     print(f"\n[{dataset}] {exp_type}  (F1={entry['test_f1']:.4f}  seed={entry['seed_dir'].name})")
 
+    # Load the correct test data
+    test_loader, vocab_info = build_test_loader(config, cache_dir, batch_size)
+    if test_loader is None:
+        return
+
+    idx2label = vocab_info['idx2label']
+    idx2word  = vocab_info.get('idx2word', {})
+
     # Load checkpoint
     try:
         ckpt = torch.load(model_path, map_location=device, weights_only=False)
     except Exception as e:
-        print(f"  ✗ Cannot load checkpoint: {e}")
+        print(f"    ✗ Cannot load checkpoint: {e}")
         return
 
     state_dict = ckpt.get('model_state_dict', ckpt)
 
     vocab_size = (state_dict['embedding.weight'].shape[0]
-                  if 'embedding.weight' in state_dict
-                  else len(vocab_info.get('word2idx', {})))
+                  if 'embedding.weight' in state_dict else 0)
     if 'hidden2tag.weight' in state_dict:
         num_tags = state_dict['hidden2tag.weight'].shape[0]
     elif 'output_layer.weight' in state_dict:
         num_tags = state_dict['output_layer.weight'].shape[0]
     else:
-        num_tags = len(vocab_info.get('label2idx', {}))
+        num_tags = len(idx2label)
 
-    # Label mapping
-    if 'label2idx' in ckpt:
-        idx2label = {v: k for k, v in ckpt['label2idx'].items()}
-    elif 'label2idx' in vocab_info:
-        idx2label = {v: k for k, v in vocab_info['label2idx'].items()}
-    else:
-        idx2label = {i: str(i) for i in range(num_tags)}
-
-    idx2word = vocab_info.get('idx2word', {})
-
-    # Build & load model
+    # Build model
     try:
         from src.model.olfactory_ner import create_olfactory_ner
         model = create_olfactory_ner(vocab_size, num_tags, config)
@@ -347,42 +384,42 @@ def process_entry(entry: dict, vocab_info: dict,
         model = model.to(device)
         model.eval()
     except Exception as e:
-        print(f"  ✗ Cannot instantiate model: {e}")
+        print(f"    ✗ Cannot instantiate model: {e}")
         return
 
     # Collect activations
-    print("  Collecting activations …")
+    print("    Collecting activations …")
     acts = collect_activations(model, test_loader, device, idx2label, idx2word)
 
-    # Entity types (excluding aggregate rows)
     skip_entities = {'micro avg', 'macro avg', 'weighted avg', 'O'}
-    entity_types = sorted(
-        (e for e in set(list(acts['receptor'].keys()) +
-                        list(acts['glomeruli'].keys()))
-         if e not in skip_entities)
-    )
+    entity_types  = sorted(e for e in
+                           set(list(acts['receptor'].keys()) +
+                               list(acts['glomeruli'].keys()))
+                           if e not in skip_entities)
+
     if not entity_types:
-        print("  ⚠  No entity activations collected — skipping.")
+        print("    ⚠  No entity activations collected — skipping.")
         return
 
-    # Output file prefix
+    print(f"    Found entities: {entity_types}")
+
     safe_ds = dataset.replace('/', '_')
     prefix  = output_dir / f"{safe_ds}__{exp_type}"
     f1_tag  = f"F1={entry['test_f1']:.4f}"
 
-    # ── 1. Receptor heatmap ─────────────────────────────────────────────
+    # ── 1. Receptor heatmap + RSI ───────────────────────────────────────
     if acts['receptor']:
-        valid = [e for e in entity_types if e in acts['receptor']]
+        valid    = [e for e in entity_types if e in acts['receptor']]
         r_matrix = _mean_matrix(acts['receptor'], valid)
+
         plot_heatmap(
             r_matrix, valid, 'Receptor',
             title=f"Receptor Activations — {dataset} / {exp_type}  ({f1_tag})",
             save_path=Path(str(prefix) + '__receptor_heatmap.png'),
         )
 
-        # RSI
         rsi_r = compute_rsi(r_matrix)
-        print(f"  Receptor avg RSI: {np.mean(rsi_r):.4f}")
+        print(f"    Receptor avg RSI: {np.mean(rsi_r):.4f}")
         plot_rsi_histogram(
             rsi_r, 'Receptor',
             title=f"Receptor RSI — {dataset} / {exp_type}  ({f1_tag})",
@@ -390,19 +427,19 @@ def process_entry(entry: dict, vocab_info: dict,
             color='purple',
         )
 
-    # ── 2. Glomeruli heatmap ────────────────────────────────────────────
+    # ── 2. Glomeruli heatmap + RSI + t-SNE ─────────────────────────────
     if acts['glomeruli']:
-        valid = [e for e in entity_types if e in acts['glomeruli']]
+        valid    = [e for e in entity_types if e in acts['glomeruli']]
         g_matrix = _mean_matrix(acts['glomeruli'], valid)
+
         plot_heatmap(
             g_matrix, valid, 'Glomerulus',
             title=f"Glomeruli Activations — {dataset} / {exp_type}  ({f1_tag})",
             save_path=Path(str(prefix) + '__glomeruli_heatmap.png'),
         )
 
-        # RSI
         rsi_g = compute_rsi(g_matrix)
-        print(f"  Glomeruli avg RSI: {np.mean(rsi_g):.4f}")
+        print(f"    Glomeruli avg RSI: {np.mean(rsi_g):.4f}")
         plot_rsi_histogram(
             rsi_g, 'Glomerulus',
             title=f"Glomeruli RSI — {dataset} / {exp_type}  ({f1_tag})",
@@ -410,7 +447,6 @@ def process_entry(entry: dict, vocab_info: dict,
             color='orange',
         )
 
-        # t-SNE
         plot_tsne(
             acts['glomeruli'], valid,
             title=f"t-SNE of Glomeruli — {dataset} / {exp_type}  ({f1_tag})",
@@ -432,12 +468,10 @@ def main():
     parser = argparse.ArgumentParser(
         description='Visualize receptor/glomeruli activations (best-seed per experiment)'
     )
-    parser.add_argument('--results_dir', type=str, required=True,
-                        help='Root dir of experiment results')
-    parser.add_argument('--output_dir',  type=str, required=True,
-                        help='Where to save output files')
-    parser.add_argument('--data_dir',    type=str, required=True,
-                        help='Directory with raw dataset files')
+    parser.add_argument('--results_dir', type=str, required=True)
+    parser.add_argument('--output_dir',  type=str, required=True)
+    parser.add_argument('--cache_dir',   type=str, required=True,
+                        help='Directory to cache/store dataset files')
     parser.add_argument('--batch_size',  type=int, default=32)
     parser.add_argument('--no_cuda',     action='store_true')
     args = parser.parse_args()
@@ -450,28 +484,13 @@ def main():
     print('='*70)
     print(f"Results dir : {args.results_dir}")
     print(f"Output dir  : {args.output_dir}")
-    print(f"Data dir    : {args.data_dir}")
+    print(f"Cache dir   : {args.cache_dir}")
     print(f"Device      : {device}")
     print('='*70)
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Load data
-    print("\nLoading dataset …")
-    try:
-        from src.data.dataset import prepare_data
-        _, _, test_loader, vocab_info = prepare_data(
-            data_dir=args.data_dir,
-            batch_size=args.batch_size,
-            min_freq=2,
-        )
-        print(f"✓ Test loader ready ({len(test_loader.dataset)} samples)")
-    except Exception as e:
-        print(f"✗ Failed to load data: {e}")
-        return
-
-    # Find best seeds
     print("\nFinding best seed per (dataset, experiment) …")
     results_dir = Path(args.results_dir)
     all_entries = find_best_seeds(results_dir)
@@ -484,7 +503,7 @@ def main():
     print('='*70)
 
     for entry in olf_entries:
-        process_entry(entry, vocab_info, test_loader, device, output_dir)
+        process_entry(entry, args.cache_dir, args.batch_size, device, output_dir)
 
     print(f"\n{'='*70}")
     print(f"DONE — outputs saved to: {output_dir}")
