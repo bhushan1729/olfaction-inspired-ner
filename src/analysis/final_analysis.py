@@ -160,7 +160,7 @@ def build_full_df(all_results: dict) -> pd.DataFrame:
 # Visualisations
 # ---------------------------------------------------------------------------
 def plot_per_entity_bars(dataset_key: str, df_dataset: pd.DataFrame,
-                         output_dir: Path):
+                         dataset_dir: Path):
     """Bar chart: per-entity F1 grouped by experiment for one dataset."""
     entity_cols = sorted([c for c in df_dataset.columns
                           if c.endswith('_F1') and c not in ('F1',)])
@@ -188,14 +188,13 @@ def plot_per_entity_bars(dataset_key: str, df_dataset: pd.DataFrame,
     ax.grid(axis='y', alpha=0.3)
     plt.tight_layout()
 
-    safe_name = dataset_key.replace('/', '_')
-    path = output_dir / f'entity_f1_{safe_name}.png'
+    path = dataset_dir / 'entity_f1.png'
     plt.savefig(path, dpi=180, bbox_inches='tight')
     plt.close()
-    print(f"  ✓ Saved per-entity bar chart → {path}")
+    print(f"  ✓ entity_f1.png")
 
 
-def plot_pr_bubble(dataset_key: str, df_dataset: pd.DataFrame, output_dir: Path):
+def plot_pr_bubble(dataset_key: str, df_dataset: pd.DataFrame, dataset_dir: Path):
     """Precision–Recall bubble chart for one dataset."""
     fig, ax = plt.subplots(figsize=(9, 7))
     palette = sns.color_palette('Set2', n_colors=len(df_dataset))
@@ -217,11 +216,10 @@ def plot_pr_bubble(dataset_key: str, df_dataset: pd.DataFrame, output_dir: Path)
     ax.grid(True, alpha=0.2)
     plt.tight_layout()
 
-    safe_name = dataset_key.replace('/', '_')
-    path = output_dir / f'pr_bubble_{safe_name}.png'
+    path = dataset_dir / 'pr_bubble.png'
     plt.savefig(path, dpi=180, bbox_inches='tight')
     plt.close()
-    print(f"  ✓ Saved P-R bubble chart → {path}")
+    print(f"  ✓ pr_bubble.png")
 
 
 def plot_cross_dataset_heatmap(full_df: pd.DataFrame, output_dir: Path):
@@ -331,16 +329,24 @@ def main():
         show_cols = [c for c in base_cols + entity_cols if c in df_d.columns]
         print(df_d[show_cols].round(4).to_string(index=False))
 
-    # 5. Per-dataset plots
+    # 5. Per-dataset plots — saved in output_dir/<dataset>/
     print(f"\n{'='*70}")
     print("Generating per-dataset plots …")
     for dataset_key in sorted(full_df['Dataset'].unique()):
         df_d = full_df[full_df['Dataset'] == dataset_key].copy()
-        print(f"\n  [{dataset_key}]")
-        plot_per_entity_bars(dataset_key, df_d, output_dir)
-        plot_pr_bubble(dataset_key, df_d, output_dir)
+        safe_ds   = dataset_key.replace('/', '_')
+        dataset_dir = output_dir / safe_ds
+        dataset_dir.mkdir(parents=True, exist_ok=True)
 
-    # 6. Cross-dataset plots
+        print(f"\n  [{dataset_key}] → {dataset_dir}")
+
+        # Per-dataset CSV
+        df_d.to_csv(dataset_dir / 'results_table.csv', index=False)
+
+        plot_per_entity_bars(dataset_key, df_d, dataset_dir)
+        plot_pr_bubble(dataset_key, df_d, dataset_dir)
+
+    # 6. Cross-dataset plots — saved at output_dir root
     print("\nGenerating cross-dataset plots …")
     plot_cross_dataset_heatmap(full_df, output_dir)
     plot_cross_dataset_bars(full_df, output_dir)

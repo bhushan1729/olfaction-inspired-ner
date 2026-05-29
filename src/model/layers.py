@@ -210,64 +210,86 @@ class MitralLayer(nn.Module):
 class OlfactoryEncoder(nn.Module):
     """
     Complete olfactory-inspired encoder.
-    
-    Architecture:
+
+    Architecture (full):
         Input embeddings
-        -> Receptor layer (specialized detectors)
-        -> Glomerular layer (convergent aggregation)
+        -> Receptor layer  (specialized detectors)
+        -> Glomerular layer (convergent aggregation)   [optional]
+        -> Mitral layer    (lateral inhibition)        [optional]
         -> Output features
+
+    When use_glomeruli=False the glomerular layer is skipped entirely;
+    the LSTM receives receptor activations directly.  This makes the
+    receptors_only ablation truly receptor-only.
     """
-    
-    def __init__(self, input_dim: int, num_receptors: int, num_glomeruli: int, 
-                 num_mitral: int = None, activation: str = 'relu', mitral_activation: str = 'relu'):
+
+    def __init__(self, input_dim: int, num_receptors: int, num_glomeruli: int,
+                 num_mitral: int = None, activation: str = 'relu',
+                 mitral_activation: str = 'relu', use_glomeruli: bool = True):
         """
         Args:
-            input_dim: Input embedding dimension
-            num_receptors: Number of receptor units
-            num_glomeruli: Number of glomerular units
-            num_mitral: Number of mitral units (optional)
-            activation: Activation function for receptors ('relu', 'gelu', 'swish', 'mish')
-            mitral_activation: Activation function for mitral cells
+            input_dim:       Input embedding dimension
+            num_receptors:   Number of receptor units
+            num_glomeruli:   Number of glomerular units (ignored when use_glomeruli=False)
+            num_mitral:      Number of mitral units (optional)
+            activation:      Activation for receptors ('relu', 'gelu', 'swish', 'mish')
+            mitral_activation: Activation for mitral cells
+            use_glomeruli:   If False, the GlomerularLayer is omitted entirely and
+                             receptor activations feed directly into subsequent layers.
         """
         super().__init__()
-        
+
+        self.use_glomeruli_layer = use_glomeruli  # stored so forward() can branch
+
         self.receptors = ReceptorLayer(input_dim, num_receptors, activation=activation)
-        self.glomeruli = GlomerularLayer(num_receptors, num_glomeruli)
-        
+
+        if use_glomeruli:
+            self.glomeruli = GlomerularLayer(num_receptors, num_glomeruli)
+            post_receptor_dim = num_glomeruli
+        else:
+            self.glomeruli = None   # truly absent — no learned weights, no forward pass
+            post_receptor_dim = num_receptors
+
         if num_mitral is not None and num_mitral > 0:
-            self.mitral = MitralLayer(num_glomeruli, num_mitral, activation=mitral_activation)
+            self.mitral = MitralLayer(post_receptor_dim, num_mitral,
+                                      activation=mitral_activation)
             self.output_dim = num_mitral
             self.use_mitral = True
         else:
             self.mitral = None
-            self.output_dim = num_glomeruli
+            self.output_dim = post_receptor_dim
             self.use_mitral = False
-    
+
     def forward(self, x, return_activations=False):
         """
         Args:
             x: [batch, seq_len, input_dim]
-            return_activations: If True, return receptor, glomeruli, and mitral activations for analysis
-        
+            return_activations: If True, also return (r, g, m) tensors.
+
         Returns:
-            out: Final encoder output
-            r (optional): [batch, seq_len, num_receptors]
-            g (optional): [batch, seq_len, num_glomeruli]
-            m (optional): [batch, seq_len, num_mitral] or None
+            out: Final encoder output  [batch, seq_len, output_dim]
+            r   (if return_activations): receptor activations
+            g   (if return_activations): glomeruli activations (None when skipped)
+            m   (if return_activations): mitral activations    (None when absent)
         """
-        r = self.receptors(x)
-        g = self.glomeruli(r)
-        
-        out = g
+        r = self.receptors(x)   # always runs
+
+        if self.use_glomeruli_layer:
+            g = self.glomeruli(r)
+            out = g
+        else:
+            g = None            # glomerular layer genuinely absent
+            out = r
+
         m = None
         if self.use_mitral:
-            m = self.mitral(g)
+            m = self.mitral(out)
             out = m
-            
+
         if return_activations:
             return out, r, g, m
         return out
-    
+
     def get_diversity_loss(self):
         """Get receptor diversity loss."""
         return self.receptors.get_diversity_loss()

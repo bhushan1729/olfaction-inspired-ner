@@ -78,10 +78,11 @@ class OlfactoryNER(nn.Module):
             self.olfactory_encoder = OlfactoryEncoder(
                 input_dim=embed_dim,
                 num_receptors=num_receptors,
-                num_glomeruli=num_glomeruli if use_glomeruli else num_receptors,
+                num_glomeruli=num_glomeruli,        # OlfactoryEncoder ignores this when use_glomeruli=False
                 num_mitral=num_mitral if use_mitral else None,
                 activation=receptor_activation,
-                mitral_activation=mitral_activation
+                mitral_activation=mitral_activation,
+                use_glomeruli=use_glomeruli,         # pass through so the layer is truly absent
             )
             # Determine lstm input dim based on highest active layer
             if use_mitral and num_mitral:
