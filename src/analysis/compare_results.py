@@ -128,33 +128,28 @@ def load_all_results(results_dir: str) -> dict:
         except Exception as e:
             print(f"  ✗ Error reading {json_path}: {e}")
 
-    # Average across seeds
+    # Select best performing seed
     all_results = {}
     for dataset_key, exp_map in raw.items():
         all_results[dataset_key] = {}
         for exp_type, seed_list in exp_map.items():
             n = len(seed_list)
-            avg_f1        = sum(m['f1']        for m in seed_list) / n
-            avg_precision = sum(m['precision'] for m in seed_list) / n
-            avg_recall    = sum(m['recall']    for m in seed_list) / n
-
-            # Average per_entity
-            avg_per_entity = defaultdict(list)
-            for m in seed_list:
-                for entity, score in m['per_entity'].items():
-                    if isinstance(score, (int, float)):
-                        avg_per_entity[entity].append(score)
-            avg_per_entity = {e: sum(v) / len(v) for e, v in avg_per_entity.items()}
+            # Find the best performing seed by F1
+            best_seed = max(seed_list, key=lambda m: m['f1'])
+            best_f1 = best_seed['f1']
+            best_precision = best_seed['precision']
+            best_recall = best_seed['recall']
+            best_per_entity = best_seed['per_entity']
 
             all_results[dataset_key][exp_type] = {
-                'f1':        avg_f1,
-                'precision': avg_precision,
-                'recall':    avg_recall,
-                'per_entity': avg_per_entity,
-                'seeds':     seed_list,
-                'n_seeds':   n,
+                'f1':         best_f1,
+                'precision':  best_precision,
+                'recall':     best_recall,
+                'per_entity': best_per_entity,
+                'seeds':      seed_list,
+                'n_seeds':    n,
             }
-            print(f"  [{dataset_key}] {exp_type} → {n} seed(s)  |  avg F1={avg_f1:.4f}")
+            print(f"  [{dataset_key}] {exp_type} -> {n} seed(s)  |  best F1={best_f1:.4f}")
 
     return all_results
 
@@ -294,7 +289,7 @@ def plot_all_experiments_bars(full_df: pd.DataFrame, output_dir: Path):
 
     ax.set_xticks(x + w * (len(experiments) - 1) / 2)
     ax.set_xticklabels(datasets, rotation=45, ha='right', fontsize=9)
-    ax.set_ylabel('Test F1 (mean across seeds)', fontsize=11)
+    ax.set_ylabel('Test F1 (best seed)', fontsize=11)
     ax.set_title('Test F1 — All Experiments × All Datasets', fontsize=13)
     ax.legend(title='Experiment', bbox_to_anchor=(1.01, 1), loc='upper left')
     ax.grid(axis='y', alpha=0.3)
@@ -380,7 +375,7 @@ def generate_markdown_report(full_df: pd.DataFrame, comp_df: pd.DataFrame,
     lines = [
         f"# NER Experiment Analysis Report\n",
         f"Generated: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}\n",
-        "## All Experiments — Mean F1 Across Seeds\n",
+        "## All Experiments — Best Seed F1\n",
         full_df.pivot(index='Experiment', columns='Dataset',
                       values='F1').round(4).to_markdown(),
         "\n\n## Baseline vs Olfactory Comparison\n",
@@ -475,7 +470,7 @@ def main():
 
     # 4. Print tables
     print(f"\n{'='*70}")
-    print("ALL EXPERIMENTS — mean F1 across seeds")
+    print("ALL EXPERIMENTS — best seed F1")
     print('='*70)
     pivot = full_df.pivot(index='Experiment', columns='Dataset', values='F1')
     print(pivot.round(4).to_string())

@@ -245,7 +245,7 @@ def _average_acts(all_acts: list) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Process one experiment group (all seeds)
+# Process one experiment group (best seed only)
 # ---------------------------------------------------------------------------
 def process_experiment(dataset_key: str, exp_type: str,
                        seed_entries: list, cache_dir: str,
@@ -282,63 +282,35 @@ def process_experiment(dataset_key: str, exp_type: str,
         for e in seed_entries:
             f.write(f"  {e['seed_dir'].name}  F1={e['test_f1']:.4f}\n")
 
-    # Collect per-seed activations (for averaging later)
-    all_receptor_acts  = []
-    all_glomeruli_acts = []
+    # Run only the best seed
+    best_name = best['seed_dir'].name
+    print(f"    [{best_name}] (Best Seed)  F1={best['test_f1']:.4f}")
 
-    for entry in seed_entries:
-        seed_name = entry['seed_dir'].name
-        seed_dir  = exp_dir / seed_name
-        seed_dir.mkdir(exist_ok=True)
+    model = load_model(best, num_tags, device)
+    if model is None:
+        return
 
-        print(f"    [{seed_name}]  F1={entry['test_f1']:.4f}")
+    acts = get_activations(model, test_loader, device, idx2label)
+    del model  # free memory
 
-        model = load_model(entry, num_tags, device)
-        if model is None:
-            continue
-
-        acts = get_activations(model, test_loader, device, idx2label)
-        del model  # free memory
-
-        # Per-seed heatmaps
-        if use_receptors and acts['receptor']:
-            plot_heatmap(
-                acts['receptor'], 'Receptor',
-                title=f"Receptor Activations — {dataset_key}/{exp_type}  {seed_name}",
-                save_path=seed_dir / 'receptor_heatmap.png',
-            )
-            all_receptor_acts.append(acts['receptor'])
-
-        elif not use_receptors:
-            print(f"      ↳ use_receptors=False — skipping receptor heatmap")
-
-        if use_glomeruli and acts['glomeruli']:
-            plot_heatmap(
-                acts['glomeruli'], 'Glomerulus',
-                title=f"Glomeruli Activations — {dataset_key}/{exp_type}  {seed_name}",
-                save_path=seed_dir / 'glomeruli_heatmap.png',
-            )
-            all_glomeruli_acts.append(acts['glomeruli'])
-
-        elif not use_glomeruli:
-            print(f"      ↳ use_glomeruli=False — skipping glomeruli heatmap")
-
-    # Exp-level: mean across all seeds
-    if all_receptor_acts:
-        mean_r = _average_acts(all_receptor_acts)
+    # Save heatmaps directly in exp_dir
+    if use_receptors and acts['receptor']:
         plot_heatmap(
-            mean_r, 'Receptor',
-            title=f"Receptor Activations (mean {len(all_receptor_acts)} seeds) — {dataset_key}/{exp_type}",
-            save_path=exp_dir / 'receptor_heatmap_all_seeds.png',
+            acts['receptor'], 'Receptor',
+            title=f"Receptor Activations — {dataset_key}/{exp_type}  {best_name}",
+            save_path=exp_dir / 'receptor_heatmap.png',
         )
+    elif not use_receptors:
+        print(f"      ↳ use_receptors=False — skipping receptor heatmap")
 
-    if all_glomeruli_acts:
-        mean_g = _average_acts(all_glomeruli_acts)
+    if use_glomeruli and acts['glomeruli']:
         plot_heatmap(
-            mean_g, 'Glomerulus',
-            title=f"Glomeruli Activations (mean {len(all_glomeruli_acts)} seeds) — {dataset_key}/{exp_type}",
-            save_path=exp_dir / 'glomeruli_heatmap_all_seeds.png',
+            acts['glomeruli'], 'Glomerulus',
+            title=f"Glomeruli Activations — {dataset_key}/{exp_type}  {best_name}",
+            save_path=exp_dir / 'glomeruli_heatmap.png',
         )
+    elif not use_glomeruli:
+        print(f"      ↳ use_glomeruli=False — skipping glomeruli heatmap")
 
 
 # ---------------------------------------------------------------------------

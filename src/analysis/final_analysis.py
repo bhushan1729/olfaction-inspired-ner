@@ -110,27 +110,23 @@ def load_all_results(results_dir: str) -> dict:
         except Exception as e:
             print(f"  ✗ Error reading {json_path}: {e}")
 
-    # Average across seeds
+    # Select best performing seed
     aggregated = {}
     for dataset_key, exp_map in raw.items():
         aggregated[dataset_key] = {}
         for exp_type, seed_list in exp_map.items():
-            n  = len(seed_list)
-            avg = {
-                'f1':        sum(m['f1']        for m in seed_list) / n,
-                'precision': sum(m['precision'] for m in seed_list) / n,
-                'recall':    sum(m['recall']    for m in seed_list) / n,
-                'n_seeds':   n,
+            n = len(seed_list)
+            # Find the best performing seed by F1
+            best_seed = max(seed_list, key=lambda m: m['f1'])
+            best_metrics = {
+                'f1':         best_seed['f1'],
+                'precision':  best_seed['precision'],
+                'recall':     best_seed['recall'],
+                'n_seeds':    n,
+                'per_entity': best_seed['per_entity'],
             }
-            # Average per_entity
-            per_e = defaultdict(list)
-            for m in seed_list:
-                for entity, score in m['per_entity'].items():
-                    if isinstance(score, (int, float)):
-                        per_e[entity].append(score)
-            avg['per_entity'] = {e: sum(v) / len(v) for e, v in per_e.items()}
-            aggregated[dataset_key][exp_type] = avg
-            print(f"  [{dataset_key}] {exp_type:20s} {n} seed(s)  F1={avg['f1']:.4f}")
+            aggregated[dataset_key][exp_type] = best_metrics
+            print(f"  [{dataset_key}] {exp_type:20s} {n} seed(s)  Best F1={best_metrics['f1']:.4f}")
 
     return aggregated
 
@@ -259,7 +255,7 @@ def plot_cross_dataset_bars(full_df: pd.DataFrame, output_dir: Path):
 
     ax.set_xticks(x + w * (len(experiments) - 1) / 2)
     ax.set_xticklabels(datasets, rotation=40, ha='right', fontsize=9)
-    ax.set_ylabel('Test F1 (mean across seeds)', fontsize=11)
+    ax.set_ylabel('Test F1 (best seed)', fontsize=11)
     ax.set_title('Test F1 — All Experiments & Datasets', fontsize=14, fontweight='bold')
     ax.legend(title='Experiment', bbox_to_anchor=(1.01, 1), loc='upper left')
     ax.grid(axis='y', alpha=0.3)

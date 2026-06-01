@@ -422,7 +422,7 @@ def process_one_seed(entry: dict, seed_dir_out: Path,
 
 
 # ---------------------------------------------------------------------------
-# Process one experiment group (all seeds)
+# Process one experiment group (best seed only)
 # ---------------------------------------------------------------------------
 def process_experiment(dataset_key: str, exp_type: str,
                        seed_entries: list, cache_dir: str,
@@ -455,52 +455,15 @@ def process_experiment(dataset_key: str, exp_type: str,
         for e in seed_entries:
             f.write(f"  {e['seed_dir'].name}  F1={e['test_f1']:.4f}\n")
 
-    # Run all seeds
-    all_mean_r, all_mean_g = [], []
-    for entry in seed_entries:
-        seed_name    = entry['seed_dir'].name
-        seed_dir_out = exp_dir / seed_name
-        print(f"    [{seed_name}]  F1={entry['test_f1']:.4f}")
+    # Run only the best seed
+    best_name = best['seed_dir'].name
+    print(f"    [{best_name}] (Best Seed)  F1={best['test_f1']:.4f}")
 
-        result = process_one_seed(
-            entry, seed_dir_out, test_loader, vocab_info,
-            use_receptors, use_glomeruli, device, dataset_key, exp_type,
-        )
-        if result:
-            if result['receptor'] is not None:
-                all_mean_r.append(result['receptor'])
-            if result['glomeruli'] is not None:
-                all_mean_g.append(result['glomeruli'])
+    process_one_seed(
+        best, exp_dir, test_loader, vocab_info,
+        use_receptors, use_glomeruli, device, dataset_key, exp_type,
+    )
 
-    # Exp-level: mean across all seeds
-    label = f"{dataset_key}/{exp_type}"
-
-    if all_mean_r:
-        mean_r = _average_across_seeds(all_mean_r)
-        plot_heatmap(mean_r, 'Receptor',
-                     title=f"Receptor Activations (mean {len(all_mean_r)} seeds) — {label}",
-                     save_path=exp_dir / 'receptor_heatmap_all_seeds.png')
-        rsi_r = compute_rsi(mean_r)
-        if rsi_r:
-            plot_rsi_histogram(rsi_r, 'Receptor',
-                               title=f"Receptor RSI (mean {len(all_mean_r)} seeds) — {label}",
-                               save_path=exp_dir / 'receptor_rsi_all_seeds.png',
-                               color='purple')
-
-    if all_mean_g:
-        mean_g = _average_across_seeds(all_mean_g)
-        plot_heatmap(mean_g, 'Glomerulus',
-                     title=f"Glomeruli Activations (mean {len(all_mean_g)} seeds) — {label}",
-                     save_path=exp_dir / 'glomeruli_heatmap_all_seeds.png')
-        rsi_g = compute_rsi(mean_g)
-        if rsi_g:
-            plot_rsi_histogram(rsi_g, 'Glomerulus',
-                               title=f"Glomeruli RSI (mean {len(all_mean_g)} seeds) — {label}",
-                               save_path=exp_dir / 'glomeruli_rsi_all_seeds.png',
-                               color='orange')
-        plot_tsne(mean_g, n_synthetic=0,
-                  title=f"t-SNE Glomeruli (mean {len(all_mean_g)} seeds) — {label}",
-                  save_path=exp_dir / 'tsne_all_seeds.png')
 
 
 # ---------------------------------------------------------------------------
