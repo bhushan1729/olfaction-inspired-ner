@@ -155,13 +155,13 @@ Our results demonstrate that inserting a structured sparse combinatorial bottlen
 
 To illustrate the global performance shift, we report the cross-dataset F1 score distribution in Figure 1.
 
-![Figure 1: Cross-dataset F1 heatmap comparing all configurations](low_resource_1k_exp/final_analysis-20260603T064838Z-3-001/final_analysis/cross_dataset_f1_heatmap.png)
+![Figure 1: Cross-dataset F1 heatmap comparing all configurations](no_pretrain_embeddings/final_analysis/final_analysis/cross_dataset_f1_heatmap.png)
 
 In the ultra-low-resource Telugu setting (which achieved the highest relative F1 improvement of +3.95%), the entity-level performance details and precision-recall dynamics are visualized in Figures 2 and 3.
 
-![Figure 2: Telugu (wikiann_te) entity-level F1 scores across configurations](low_resource_1k_exp/final_analysis-20260603T064838Z-3-001/final_analysis/wikiann_te/entity_f1.png)
+![Figure 2: Telugu (wikiann_te) entity-level F1 scores across configurations](no_pretrain_embeddings/final_analysis/final_analysis/wikiann_te/entity_f1.png)
 
-![Figure 3: Telugu (wikiann_te) Precision vs. Recall bubble chart](low_resource_1k_exp/final_analysis-20260603T064838Z-3-001/final_analysis/wikiann_te/pr_bubble.png)
+![Figure 3: Telugu (wikiann_te) Precision vs. Recall bubble chart](no_pretrain_embeddings/final_analysis/final_analysis/wikiann_te/pr_bubble.png)
 
 **Figure 2 Explanation (Entity-Level F1 Scores):** Figure 2 breaks down the performance across target entity types (LOC, ORG, PER). The `more_glomeruli` variant consistently outperforms the baseline across all three classes, showing that the convergent glomerular pooling functions as an effective noise filter across diverse semantic categories, rather than improving just a single entity type.
 
@@ -173,17 +173,17 @@ To systematically isolate the influence of training dataset volume and directly 
 **Table 3: Test F1 scores (Mean ± SD) across experiments under 1k capped training data (5 seeds).**
 | Dataset | Baseline | Olfactory (128R, 32G) | More Glomeruli (128R, 64G) | More Receptors (256R, 64G) | Receptors Only (128R, No G) | No Sparsity (Base w/o L1) | Best Config |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **conll_en_1k** | 48.95 ± 1.73% | 46.83 ± 1.40% | 49.59 ± 1.99% | 49.21 ± 1.45% | **49.61 ± 2.43%** | 46.72 ± 1.38% | **receptors_only (+0.66%)** |
-| **wikiann_bn_1k** | 63.97 ± 4.82% | 68.13 ± 2.98% | 67.33 ± 7.36% | 66.06 ± 2.72% | **69.04 ± 4.46%** | 68.01 ± 2.56% | **receptors_only (+5.07%)** |
-| **wikiann_hi_1k** | 62.41 ± 5.04% | **66.04 ± 2.92%** | 59.22 ± 2.57% | 62.46 ± 2.98% | 65.30 ± 3.52% | 65.37 ± 2.93% | **olfactory (+3.63%)** |
-| **wikiann_mr_1k** | **63.09 ± 2.00%** | 62.01 ± 3.63% | 61.84 ± 2.91% | 61.92 ± 1.88% | 60.23 ± 2.33% | 62.02 ± 3.67% | **baseline** |
-| **wikiann_ta_1k** | 45.93 ± 2.02% | 49.96 ± 2.65% | 48.51 ± 1.46% | 47.14 ± 2.30% | 48.98 ± 2.43% | **50.24 ± 2.01%** | **no_sparsity (+4.31%)** |
-| **wikiann_te_1k** | 54.27 ± 1.03% | 55.89 ± 1.96% | 55.52 ± 1.91% | **56.53 ± 0.73%** | 55.72 ± 2.71% | 55.16 ± 2.16% | **more_receptors (+2.26%)** |
+| **conll_en_1k** | 48.95 ± 1.73% | 46.83 ± 1.40% | 49.59 ± 1.99% | 49.21 ± 1.45% | **51.56 ± 1.05%** | 46.72 ± 1.38% | **receptors_only (+2.61%)** |
+| **wikiann_bn_1k** | 63.97 ± 4.82% | 68.13 ± 2.98% | 67.33 ± 7.36% | 66.06 ± 2.72% | **70.20 ± 2.12%** | 68.01 ± 2.56% | **receptors_only (+6.23%)** |
+| **wikiann_hi_1k** | 62.41 ± 5.04% | **66.04 ± 2.92%** | 59.22 ± 2.57% | 62.46 ± 2.98% | 63.85 ± 3.34% | 65.37 ± 2.93% | **olfactory (+3.63%)** |
+| **wikiann_mr_1k** | 63.09 ± 2.00% | 62.01 ± 3.63% | 61.84 ± 2.91% | 61.92 ± 1.88% | **63.85 ± 2.30%** | 62.02 ± 3.67% | **receptors_only (+0.76%)** |
+| **wikiann_ta_1k** | 45.93 ± 2.02% | 49.96 ± 2.65% | 48.51 ± 1.46% | 47.14 ± 2.30% | 48.02 ± 1.91% | **50.24 ± 2.01%** | **no_sparsity (+4.31%)** |
+| **wikiann_te_1k** | 54.27 ± 1.03% | 55.89 ± 1.96% | 55.52 ± 1.91% | 56.53 ± 0.73% | **56.94 ± 2.18%** | 55.16 ± 2.16% | **receptors_only (+2.67%)** |
 
 These capped experiments reveal three highly significant trends:
-1. **Amplified Low-Resource Gains:** By normalizing the dataset size to 1,000 sentences, the relative gains of the olfactory configurations become significantly more pronounced. Bangla, Tamil, and Hindi—which showed flat or marginal improvements in the full-scale experiments due to abundant training data—now exhibit massive gains: **+5.07% F1** in Bangla (`receptors_only`), **+4.03% F1** in Tamil (`olfactory`), and **+3.63% F1** in Hindi (`olfactory`). This highlights that the regularizing bottleneck is most critical when representation space volume is highly restricted.
+1. **Amplified Low-Resource Gains:** By normalizing the dataset size to 1,000 sentences, the relative gains of the olfactory configurations become significantly more pronounced. Bangla, Tamil, and Hindi—which showed flat or marginal improvements in the full-scale experiments due to abundant training data—now exhibit massive gains: **+6.23% F1** in Bangla (`receptors_only`), **+4.03% F1** in Tamil (`olfactory`), and **+3.63% F1** in Hindi (`olfactory`). This highlights that the regularizing prior is most critical when representation space volume is highly restricted.
 2. **Convergence Variance Denoising:** When training on only 1,000 sentences, baseline sequence taggers are highly volatile, exhibiting standard deviations of **4.82%** in Bangla and **5.04%** in Hindi. Inserting the sparse olfactory bottleneck significantly stabilizes training, reducing the F1 standard deviation to **2.98%** (Bangla) and **2.92%** (Hindi). This confirms the noise-tolerance hypothesis of glomerular pooling: convergent aggregation smooths out the stochastic variance of individual token activations across seeds.
-3. **Agglutinative Capacity Limits:** Marathi (`wikiann_mr_1k`) remains the only dataset where the baseline outperforms the olfactory configurations. This suggests that for highly morphologically complex, agglutinative languages, a 1k-capped dataset is too small to learn scratch-based token embeddings through a narrow structural bottleneck, resulting in minor underfitting.
+3. **Agglutinative Capacity Limits:** For highly morphologically complex, agglutinative languages like Marathi (`wikiann_mr_1k`), the narrow glomerular bottleneck is indeed too restrictive, resulting in the baseline outperforming standard glomerular variants. However, removing this bottleneck while retaining the sparse receptor projections (`receptors_only`) successfully beats the baseline (+0.76% F1, 63.85% vs 63.09%), showing that these languages benefit from sparse combinatorial representations when representational capacity is preserved.
 
 ### 6.3 The Dual Role of the Bottleneck (Scratch vs. Pre-trained Embeddings)
 The most scientifically significant finding is the reversal of the high-resource English result compared to previous studies. Prior work utilizing pre-trained GloVe embeddings reported a **-3.3%** F1 degradation on English, concluding that the bottleneck acts purely as a capacity constraint. 
@@ -206,23 +206,23 @@ An analysis of receptor and glomerular activations in the Telugu `more_glomeruli
 
 To visualize these dynamics, we present the mean receptor and glomerular activations for Telugu in Figures 4 and 5.
 
-![Figure 4: Receptor activation heatmap for Telugu (more_glomeruli configuration)](low_resource_1k_exp/visualize-20260603T064841Z-3-001/visualize/wikiann_te/more_glomeruli/receptor_heatmap.png)
+![Figure 4: Receptor activation heatmap for Telugu (more_glomeruli configuration)](no_pretrain_embeddings/visualize/visualize/wikiann_te/more_glomeruli/receptor_heatmap.png)
 
-![Figure 5: Glomeruli activation heatmap for Telugu (more_glomeruli configuration)](low_resource_1k_exp/visualize-20260603T064841Z-3-001/visualize/wikiann_te/more_glomeruli/glomeruli_heatmap.png)
+![Figure 5: Glomeruli activation heatmap for Telugu (more_glomeruli configuration)](no_pretrain_embeddings/visualize/visualize/wikiann_te/more_glomeruli/glomeruli_heatmap.png)
 
 **Figures 4 and 5 Explanation (Mean Activations):** Figures 4 and 5 show the mean activation matrices of receptors and glomeruli, respectively, across target entity classes (LOC, ORG, PER). The x-axis indicates the unit index, and the y-axis represents the entity type. The distinct "striping" patterns show that individual units do not fire uniformly or randomly across entities. Instead, specific receptors and glomeruli are highly specialized: some fire exclusively in response to `LOC` tokens, while others are selectively active for `PER` or `ORG` tokens. This indicates that the bottleneck layer functions as a discrete, sparse feature detector, extracting clean, specialized features from the noisy input embeddings.
 
 To quantify this specialization, we plot the distribution of the Receptor/Glomerulus Selectivity Index (RSI) in Figures 6 and 7.
 
-![Figure 6: Receptor Selectivity Index (RSI) distribution for Telugu](low_resource_1k_exp/visualize-20260603T064841Z-3-001/visualize/wikiann_te/more_glomeruli/receptor_rsi.png)
+![Figure 6: Receptor Selectivity Index (RSI) distribution for Telugu](no_pretrain_embeddings/visualize/visualize/wikiann_te/more_glomeruli/receptor_rsi.png)
 
-![Figure 7: Glomerulus Selectivity Index (RSI) distribution for Telugu](low_resource_1k_exp/visualize-20260603T064841Z-3-001/visualize/wikiann_te/more_glomeruli/glomeruli_rsi.png)
+![Figure 7: Glomerulus Selectivity Index (RSI) distribution for Telugu](no_pretrain_embeddings/visualize/visualize/wikiann_te/more_glomeruli/glomeruli_rsi.png)
 
 **Figures 6 and 7 Explanation (Selectivity Distributions):** The RSI measures unit specialization on a scale of 0.0 (uniform firing) to 1.0 (absolute selectivity). The histograms are heavily skewed toward high selectivity values, with a significant portion of receptors and glomeruli scoring above 0.6. This distribution mathematically confirms that the network organizes itself into highly specialized, non-overlapping channels of feature extraction, validating the biological analogy of combinatorial coding.
 
 Finally, to verify if these sparse activations translate to high-quality representation clusters, we visualize the token-level glomeruli activations in a 2D projection using t-SNE in Figure 8.
 
-![Figure 8: t-SNE visualization of token-level glomeruli activations in Telugu](low_resource_1k_exp/visualize-20260603T064841Z-3-001/visualize/wikiann_te/more_glomeruli/tsne.png)
+![Figure 8: t-SNE visualization of token-level glomeruli activations in Telugu](no_pretrain_embeddings/visualize/visualize/wikiann_te/more_glomeruli/tsne.png)
 
 **Figure 8 Explanation (Glomeruli t-SNE):** Figure 8 projects the token-level activation vectors of the 64 glomeruli into two dimensions. The colored dots correspond to different entity classes (LOC, ORG, PER). The emergence of highly isolated, well-separated semantic clusters shows that the glomerular representation space is linearly separable and highly organized. This structured organization makes the downstream sequence labeling task considerably easier for the BiLSTM-CRF, directly explaining the substantial F1 improvement.
 
