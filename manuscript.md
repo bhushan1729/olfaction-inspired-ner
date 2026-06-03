@@ -189,13 +189,13 @@ To visually illustrate how the olfactory prior denoises and restructures learnin
 
 To illustrate the global performance shift under 1k-sentence constraints, the cross-dataset F1 score distribution is plotted in Figure 4.
 
-![Figure 4: Cross-dataset F1 heatmap comparing all configurations (1k Capped)](low_resource_1k_exp/final_analysis/final_analysis/cross_dataset_f1_heatmap.png)
+![Figure 4: Cross-dataset F1 heatmap comparing all configurations (1k Capped)](low_resource_1k_exp/final_analysis/final/cross_dataset_f1_heatmap.png)
 
 In the ultra-low-resource Telugu setting under strict 1k sentence constraints, the entity-level performance details and precision-recall dynamics are visualized in Figures 5 and 6.
 
-![Figure 5: Telugu (wikiann_te_1k) entity-level F1 scores across configurations](low_resource_1k_exp/final_analysis/final_analysis/wikiann_te/entity_f1.png)
+![Figure 5: Telugu (wikiann_te_1k) entity-level F1 scores across configurations](low_resource_1k_exp/final_analysis/final/wikiann_te_1k/entity_f1.png)
 
-![Figure 6: Telugu (wikiann_te_1k) Precision vs. Recall bubble chart](low_resource_1k_exp/final_analysis/final_analysis/wikiann_te/pr_bubble.png)
+![Figure 6: Telugu (wikiann_te_1k) Precision vs. Recall bubble chart](low_resource_1k_exp/final_analysis/final/wikiann_te_1k/pr_bubble.png)
 
 **Figure 5 Explanation (Entity-Level F1 Scores - 1k Capped):** Figure 5 breaks down the performance across target entity types (LOC, ORG, PER) in the 1k setting. The olfactory configurations (specifically `more_glomeruli` and `more_receptors`) consistently outperform the baseline across semantic categories, demonstrating that the biological prior filters noise uniformly across all target labels rather than optimizing for a single class.
 
@@ -203,23 +203,23 @@ In the ultra-low-resource Telugu setting under strict 1k sentence constraints, t
 
 The mean receptor and glomerular activations for Telugu in the 1k capped experiments are shown in Figures 7 and 8.
 
-![Figure 7: Receptor activation heatmap for Telugu (more_glomeruli configuration - 1k Capped)](low_resource_1k_exp/visualize/visualize/wikiann_te/more_glomeruli/receptor_heatmap.png)
+![Figure 7: Receptor activation heatmap for Telugu (more_glomeruli configuration - 1k Capped)](low_resource_1k_exp/visualize/visualize/wikiann_te_1k/more_glomeruli/receptor_heatmap.png)
 
-![Figure 8: Glomeruli activation heatmap for Telugu (more_glomeruli configuration - 1k Capped)](low_resource_1k_exp/visualize/visualize/wikiann_te/more_glomeruli/glomeruli_heatmap.png)
+![Figure 8: Glomeruli activation heatmap for Telugu (more_glomeruli configuration - 1k Capped)](low_resource_1k_exp/visualize/visualize/wikiann_te_1k/more_glomeruli/glomeruli_heatmap.png)
 
 **Figures 7 and 8 Explanation (Mean Activations - 1k Capped):** Heatmaps of mean receptor and glomerular activations show distinct horizontal striping patterns across target entity classes. This indicates that even under severe resource limitations (1k sentences), individual receptors and glomeruli specialize in detecting specific classes (e.g. LOC-specific suffixes or PER-specific features), validating that the model organizes itself into specialized, non-overlapping channels of feature extraction.
 
 To quantify this selectivity under 1k constraints, we plot the distribution of the Selectivity Index (RSI) for receptors and glomeruli in Figures 9 and 10.
 
-![Figure 9: Receptor Selectivity Index (RSI) distribution for Telugu (1k Capped)](low_resource_1k_exp/visualize/visualize/wikiann_te/more_glomeruli/receptor_rsi.png)
+![Figure 9: Receptor Selectivity Index (RSI) distribution for Telugu (1k Capped)](low_resource_1k_exp/visualize/visualize/wikiann_te_1k/more_glomeruli/receptor_rsi.png)
 
-![Figure 10: Glomerulus Selectivity Index (RSI) distribution for Telugu (1k Capped)](low_resource_1k_exp/visualize/visualize/wikiann_te/more_glomeruli/glomeruli_rsi.png)
+![Figure 10: Glomerulus Selectivity Index (RSI) distribution for Telugu (1k Capped)](low_resource_1k_exp/visualize/visualize/wikiann_te_1k/more_glomeruli/glomeruli_rsi.png)
 
 **Figures 9 and 10 Explanation (Selectivity Distributions - 1k Capped):** The RSI histograms are heavily skewed toward high selectivity values (>0.6), confirming that sparse specialization emerges naturally even with highly limited supervision.
 
 Finally, we visualize the token-level glomeruli activations under 1k constraints in a 2D t-SNE projection in Figure 11.
 
-![Figure 11: t-SNE visualization of token-level glomeruli activations in Telugu (1k Capped)](low_resource_1k_exp/visualize/visualize/wikiann_te/more_glomeruli/tsne.png)
+![Figure 11: t-SNE visualization of token-level glomeruli activations in Telugu (1k Capped)](low_resource_1k_exp/visualize/visualize/wikiann_te_1k/more_glomeruli/tsne.png)
 
 **Figure 11 Explanation (Glomeruli t-SNE - 1k Capped):** The emergence of clean, well-separated semantic clusters in the 2D projection demonstrates that the sparse representation space is highly organized and linearly separable, allowing the CRF decoder to make more accurate sequence labeling decisions.
 
