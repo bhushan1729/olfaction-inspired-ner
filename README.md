@@ -231,7 +231,7 @@ These experiments evaluate the architecture on the full size of each dataset (ra
 | | olfactory | 55.92 ± 1.80% | 60.26 ± 3.04% | 52.21 ± 1.08% | 3 |
 | | receptors_only | 55.40 ± 1.02% | 56.96 ± 1.61% | 53.94 ± 0.52% | 3 |
 
-**Key Takeaway**: Under full-resource training, olfactory configurations (especially those with larger capacity like `more_glomeruli` or `receptors_only`) show distinct benefits over the baseline in low-resource settings such as Telugu (+4.43% F1), Marathi (+2.77% F1), and Tamil (+0.40% F1). Conversely, the standard baseline remains highly competitive in English, Bangla, and Hindi where structural constraints are less necessary due to sufficient training data.
+**Key Takeaway**: Under full-resource training without pretrained embeddings, olfactory configurations (especially those with structured bottlenecks like `more_glomeruli` or `receptors_only`) show distinct benefits over the baseline in low-resource settings such as Telugu (+4.43% F1 mean / +3.95% best seed) and Marathi (+2.77% F1 mean / +1.29% best seed), and even improve high-resource English when trained from scratch (+0.80% F1 mean / +1.59% best seed). Conversely, the standard baseline remains highly competitive in Bangla and Hindi where structural constraints are less necessary due to high dataset regularity or sufficient volume.
 
 ---
 
