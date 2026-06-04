@@ -196,3 +196,54 @@ experiments:
     num_receptors: 128
     num_glomeruli: 32
     activation: gelu
+  dense_bottleneck:
+    embedding_dim: 300
+    dropout: 0.2
+    batch_size: 32
+    learning_rate: 0.001
+    num_epochs: 30
+    patience: 5
+    min_freq: 2
+    lambda_sparse: 0.0
+    lambda_diverse: 0.0
+    use_receptors: true
+    use_glomeruli: false
+    use_crf: true
+    model_type: olfactory
+    num_receptors: 64
+    activation: linear
+    receptor_activation: linear
+  simple_sparse_bottleneck:
+    embedding_dim: 300
+    dropout: 0.2
+    batch_size: 32
+    learning_rate: 0.001
+    num_epochs: 30
+    patience: 5
+    min_freq: 2
+    lambda_sparse: 0.0
+    lambda_diverse: 0.0
+    use_receptors: true
+    use_glomeruli: false
+    use_crf: true
+    model_type: olfactory
+    num_receptors: 64
+    activation: relu
+    receptor_activation: relu
+  sparse_bottleneck_l1:
+    embedding_dim: 300
+    dropout: 0.2
+    batch_size: 32
+    learning_rate: 0.001
+    num_epochs: 30
+    patience: 5
+    min_freq: 2
+    lambda_sparse: 0.001
+    lambda_diverse: 0.0
+    use_receptors: true
+    use_glomeruli: false
+    use_crf: true
+    model_type: olfactory
+    num_receptors: 64
+    activation: relu
+    receptor_activation: relu

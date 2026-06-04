@@ -42,6 +42,10 @@ extracted_results/images/
 extracted_results/text_results/
 no_pretrain_embeddings/
 low_resource_1k_exp/
+paper/
+
+
+reviewer_two_suggesions.md
 
 # Jupyter
 .ipynb_checkpoints/

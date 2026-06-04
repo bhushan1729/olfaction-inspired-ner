@@ -50,6 +50,7 @@ class ReceptorLayer(nn.Module):
             'swish': nn.SiLU(),  # SiLU is PyTorch's name for Swish
             'silu': nn.SiLU(),
             'mish': nn.Mish(),
+            'linear': nn.Identity(),
         }
         
         if activation.lower() not in activation_map:
