@@ -4,9 +4,11 @@
 
 BASE_SAVE_DIR="/content/drive/My Drive/olfaction_inspired_ner/low_resource_exp"
 SEEDS=(42 123 456 789 1011)
-EXPERIMENTS=("baseline" "olfactory" "receptors_only" "no_sparsity" "more_receptors" "more_glomeruli")
+#EXPERIMENTS=("baseline" "olfactory" "receptors_only" "no_sparsity" "more_receptors" "more_glomeruli")
+EXPERIMENTS=("more_receptors_32g")
+
 DATASETS=("conll_en_1k" "wikiann_mr_1k" "wikiann_hi_1k" "wikiann_bn_1k" "wikiann_ta_1k" "wikiann_te_1k")
-FASTTEXT_LANGS=("en" "mr" "hi" "ta" "bn" "te")
+#FASTTEXT_LANGS=("en" "mr" "hi" "ta" "bn" "te")
 
 echo "========================================"
 echo "Preparing FastText Embeddings"

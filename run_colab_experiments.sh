@@ -3,9 +3,13 @@
 # Runs sequentially. (Parallel execution causes CPU/Disk bottlenecks on Colab).
 
 BASE_SAVE_DIR="/content/drive/My Drive/olfaction_inspired_ner/no_pretrained_embeddings"
-SEEDS=(42 123 456 789 1011)
-EXPERIMENTS=("baseline" "olfactory" "receptors_only" "no_sparsity" "more_receptors" "more_glomeruli")
-DATASETS=("wikiann_mr" "wikiann_hi" "wikiann_ta" "wikiann_bn" "wikiann_te")
+#SEEDS=(42 123 456 789 1011)
+SEEDS=(42 123 456)
+
+#EXPERIMENTS=("baseline" "olfactory" "receptors_only" "no_sparsity" "more_receptors" "more_glomeruli")
+EXPERIMENTS=("more_receptors_32g")
+
+DATASETS=("conll_en" "wikiann_mr" "wikiann_hi" "wikiann_ta" "wikiann_bn" "wikiann_te")
 FASTTEXT_LANGS=("en" "mr" "hi" "ta" "bn" "te")
 
 echo "========================================"

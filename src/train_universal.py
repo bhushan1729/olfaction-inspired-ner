@@ -248,7 +248,7 @@ def main():
                 'metrics': val_metrics,
                 'config': config
             }, os.path.join(full_save_dir, 'best_model.pt'))
-            print("✓ Saved new best model")
+            print("Saved new best model")
         else:
             patience_counter += 1
             print(f"No improvement for {patience_counter} epochs")
@@ -280,7 +280,7 @@ def main():
     with open(os.path.join(full_save_dir, 'results.json'), 'w') as f:
         json.dump(results, f, indent=2)
         
-    print(f"✓ Results saved to {full_save_dir}")
+    print(f"Results saved to {full_save_dir}")
     print(f"Test F1: {test_metrics['f1']:.4f}")
 
 

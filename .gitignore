@@ -34,6 +34,7 @@ runs/
 *.pt
 *.pth
 *.ckpt
+*.md
 
 # Analysis outputs
 analysis_results/
@@ -46,6 +47,9 @@ paper/
 
 
 reviewer_two_suggesions.md
+citations_to_add.md
+manuscript.md
+
 
 # Jupyter
 .ipynb_checkpoints/
