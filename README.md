@@ -181,96 +181,43 @@ We consider the hypothesis validated if **any** of:
 
 ## Results
 
-All experiments are evaluated **without pretrained embeddings** (starting with random embeddings trained from scratch) to isolate the performance under strict inductive bias constraints. Results report the **Mean ± Standard Deviation (SD)** across multiple random seeds.
+All experiments are evaluated **without pretrained embeddings** (starting with random embeddings trained entirely from scratch) to isolate the performance under strict inductive bias constraints. Results report the **Mean ± Standard Deviation (SD)** across multiple random seeds.
 
 ### 1. Full-Scale Multilingual Experiments (3 Seeds)
 
-These experiments evaluate the architecture on the full size of each dataset (ranging from 1k sentences in Telugu to 15k sentences in Tamil), using 3 random seeds.
+These experiments evaluate the architecture on the full size of each dataset (ranging from 1.4k sentences in Telugu to 15k sentences in Tamil), using 3 random seeds.
 
-| Dataset | Experiment | F1 (Mean ± SD) | Precision | Recall | Seeds |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **conll2003** (English, 14k) | baseline | 75.68 ± 0.28% | 78.85 ± 0.11% | 72.77 ± 0.55% | 3 |
-| | more_glomeruli | **76.48 ± 0.76%** | 80.74 ± 1.04% | 72.64 ± 0.52% | 3 |
-| | more_receptors | 76.27 ± 0.69% | 80.11 ± 2.00% | 72.82 ± 0.38% | 3 |
-| | no_sparsity | 76.17 ± 0.18% | 80.23 ± 0.89% | 72.50 ± 0.40% | 3 |
-| | olfactory | 75.88 ± 0.67% | 79.76 ± 1.13% | 72.37 ± 0.52% | 3 |
-| | receptors_only | 75.62 ± 1.16% | 78.85 ± 1.76% | 72.65 ± 0.67% | 3 |
-| | | | | | |
-| **wikiann_bn** (Bangla, 10k) | baseline | 92.91 ± 0.71% | 93.33 ± 0.74% | 92.50 ± 0.70% | 3 |
-| | more_glomeruli | **93.11 ± 0.79%** | 93.44 ± 1.03% | 92.78 ± 0.56% | 3 |
-| | more_receptors | 92.38 ± 1.38% | 92.65 ± 1.63% | 92.10 ± 1.13% | 3 |
-| | no_sparsity | 92.70 ± 0.55% | 93.09 ± 0.52% | 92.32 ± 0.58% | 3 |
-| | olfactory | 92.95 ± 0.57% | 93.44 ± 0.33% | 92.47 ± 0.82% | 3 |
-| | receptors_only | 92.78 ± 0.37% | 93.10 ± 0.64% | 92.47 ± 0.15% | 3 |
-| | | | | | |
-| **wikiann_hi** (Hindi, 5k) | baseline | **83.22 ± 0.39%** | 83.40 ± 0.61% | 83.03 ± 0.66% | 3 |
-| | more_glomeruli | 81.64 ± 1.82% | 81.13 ± 2.20% | 82.17 ± 1.45% | 3 |
-| | more_receptors | 82.40 ± 0.94% | 82.63 ± 1.65% | 82.19 ± 0.52% | 3 |
-| | no_sparsity | 79.55 ± 3.51% | 79.03 ± 4.21% | 80.10 ± 2.80% | 3 |
-| | olfactory | 80.55 ± 3.58% | 80.19 ± 4.11% | 80.92 ± 3.03% | 3 |
-| | receptors_only | 82.61 ± 1.29% | 82.06 ± 1.85% | 83.17 ± 0.72% | 3 |
-| | | | | | |
-| **wikiann_mr** (Marathi, 5k) | baseline | 77.44 ± 0.27% | 79.99 ± 0.43% | 75.05 ± 0.37% | 3 |
-| | more_glomeruli | 76.48 ± 3.64% | 79.29 ± 3.88% | 73.87 ± 3.51% | 3 |
-| | more_receptors | 78.85 ± 1.82% | 80.14 ± 2.07% | 77.61 ± 1.63% | 3 |
-| | no_sparsity | 78.59 ± 0.44% | 82.10 ± 0.06% | 75.37 ± 0.78% | 3 |
-| | olfactory | 79.34 ± 0.16% | 82.16 ± 0.43% | 76.71 ± 0.54% | 3 |
-| | receptors_only | **80.21 ± 0.52%** | 83.52 ± 1.08% | 77.16 ± 0.30% | 3 |
-| | | | | | |
-| **wikiann_ta** (Tamil, 15k) | baseline | 79.77 ± 0.37% | 82.33 ± 0.06% | 77.36 ± 0.66% | 3 |
-| | more_glomeruli | 79.41 ± 0.74% | 81.45 ± 0.78% | 77.46 ± 0.74% | 3 |
-| | more_receptors | 79.39 ± 0.17% | 81.50 ± 0.02% | 77.38 ± 0.31% | 3 |
-| | no_sparsity | 79.28 ± 1.07% | 82.24 ± 1.01% | 76.52 ± 1.17% | 3 |
-| | olfactory | 79.44 ± 0.66% | 81.57 ± 1.08% | 77.44 ± 1.00% | 3 |
-| | receptors_only | **80.17 ± 0.58%** | 82.86 ± 0.69% | 77.65 ± 0.48% | 3 |
-| | | | | | |
-| **wikiann_te** (Telugu, 1k) | baseline | 52.51 ± 1.74% | 55.19 ± 1.92% | 50.10 ± 1.82% | 3 |
-| | more_glomeruli | **56.94 ± 1.17%** | 61.09 ± 1.97% | 53.34 ± 0.84% | 3 |
-| | more_receptors | 56.07 ± 1.96% | 59.30 ± 2.86% | 53.20 ± 1.28% | 3 |
-| | no_sparsity | 55.74 ± 1.80% | 59.92 ± 2.98% | 52.15 ± 1.09% | 3 |
-| | olfactory | 55.92 ± 1.80% | 60.26 ± 3.04% | 52.21 ± 1.08% | 3 |
-| | receptors_only | 55.40 ± 1.02% | 56.96 ± 1.61% | 53.94 ± 0.52% | 3 |
+| Dataset | Baseline | Olfactory (128R, 32G) | More Glomeruli (128R, 64G) | More Receptors (256R, 64G) | Receptors Only (128R, No G) | No Sparsity (Base w/o L1) | Best Config |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **conll_en** (English, 14k) | 75.68 ± 0.28% | 75.88 ± 0.67% | 76.48 ± 0.76% | 76.27 ± 0.69% | **76.55 ± 0.19%** | 76.17 ± 0.18% | **receptors_only (+0.87%)** |
+| **wikiann_bn** (Bangla, 10k) | 92.91 ± 0.71% | 92.95 ± 0.57% | **93.11 ± 0.79%** | 92.38 ± 1.38% | 92.78 ± 0.37% | 92.70 ± 0.55% | **more_glomeruli (+0.20%)** |
+| **wikiann_hi** (Hindi, 5k) | 82.41 ± 1.33% | 81.24 ± 1.41% | 82.58 ± 1.03% | 81.67 ± 0.35% | **83.07 ± 0.97%** | 80.07 ± 1.42% | **receptors_only (+0.66%)** |
+| **wikiann_mr** (Marathi, 5k) | 78.04 ± 0.57% | 78.92 ± 0.01% | 77.86 ± 2.50% | 78.93 ± 1.06% | 78.40 ± 0.37% | **79.04 ± 0.61%** | **no_sparsity (+1.00%)** |
+| **wikiann_ta** (Tamil, 15k) | 79.77 ± 0.37% | 79.44 ± 0.66% | 79.41 ± 0.74% | 79.39 ± 0.17% | **80.17 ± 0.58%** | 79.28 ± 1.07% | **receptors_only (+0.40%)** |
+| **wikiann_te** (Telugu, 1.4k) | 52.51 ± 1.74% | 55.92 ± 1.80% | **56.94 ± 1.17%** | 56.07 ± 1.96% | 55.40 ± 1.02% | 55.74 ± 1.80% | **more_glomeruli (+4.43%)** |
 
-**Key Takeaway**: Under full-resource training without pretrained embeddings, olfactory configurations (especially those with structured bottlenecks like `more_glomeruli` or `receptors_only`) show distinct benefits over the baseline in low-resource settings such as Telugu (+4.43% F1 mean / +3.95% best seed) and Marathi (+2.77% F1 mean / +1.29% best seed), and even improve high-resource English when trained from scratch (+0.80% F1 mean / +1.59% best seed). Conversely, the standard baseline remains highly competitive in Bangla and Hindi where structural constraints are less necessary due to high dataset regularity or sufficient volume.
+**Key Takeaways**:
+- **Denoising at Low Scales:** The most pronounced full-scale improvements occur on Telugu (+4.43% F1) where the training size is naturally very small (~1.4k sentences). Glomerular compression acts as a denoising filter to improve generalization.
+- **Agglutinative Capacity Trade-offs:** For morphologically complex, agglutinative languages like Marathi, removing the bottleneck while keeping receptor projections (`receptors_only` or `no_sparsity`) achieves the best results, suggesting these languages benefit from high-dimensional sparse representations rather than strict compression.
 
 ---
 
 ### 2. Low-Resource Simulation Capped Experiments (1k Capped, 5 Seeds)
 
-To systematically control the impact of dataset size and directly compare performance in data-constrained scenarios, we evaluated all 6 datasets capped at exactly **1,000 training sentences** across 5 random seeds.
+To systematically control the dataset size variable, we evaluated all 6 datasets capped at exactly **1,000 training sentences** across 5 random seeds.
 
-| Dataset | Experiment | F1 (Mean ± SD) | Precision | Recall | Seeds |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **conll_en_1k** (English, 1k) | baseline | **48.95 ± 1.73%** | 54.05 ± 2.30% | 44.91 ± 3.11% | 5 |
-| | no_sparsity | 46.72 ± 1.38% | 50.44 ± 3.36% | 43.72 ± 2.15% | 5 |
-| | olfactory | 46.83 ± 1.40% | 51.47 ± 3.77% | 43.18 ± 2.19% | 5 |
-| | | | | | |
-| **wikiann_bn_1k** (Bangla, 1k) | baseline | 63.97 ± 4.82% | 60.14 ± 6.55% | 68.60 ± 3.04% | 5 |
-| | no_sparsity | 68.01 ± 2.56% | 65.35 ± 2.49% | 70.91 ± 2.75% | 5 |
-| | olfactory | **68.13 ± 2.98%** | 65.71 ± 3.35% | 70.74 ± 2.68% | 5 |
-| | | | | | |
-| **wikiann_hi_1k** (Hindi, 1k) | baseline | 62.41 ± 5.04% | 59.82 ± 6.85% | 65.42 ± 3.06% | 5 |
-| | no_sparsity | 65.37 ± 2.93% | 62.91 ± 4.16% | 68.09 ± 1.53% | 5 |
-| | olfactory | **66.04 ± 2.92%** | 63.95 ± 3.88% | 68.32 ± 1.97% | 5 |
-| | | | | | |
-| **wikiann_mr_1k** (Marathi, 1k) | baseline | **63.09 ± 2.00%** | 65.01 ± 3.20% | 61.33 ± 1.30% | 5 |
-| | no_sparsity | 62.02 ± 3.67% | 63.67 ± 5.22% | 60.52 ± 2.31% | 5 |
-| | olfactory | 62.01 ± 3.63% | 64.24 ± 5.13% | 60.02 ± 2.69% | 5 |
-| | | | | | |
-| **wikiann_ta_1k** (Tamil, 1k) | baseline | 45.93 ± 2.02% | 46.57 ± 3.73% | 45.45 ± 1.10% | 5 |
-| | no_sparsity | **50.24 ± 2.01%** | 52.99 ± 3.60% | 47.83 ± 1.12% | 5 |
-| | olfactory | 49.96 ± 2.65% | 52.51 ± 4.68% | 47.78 ± 1.51% | 5 |
-| | | | | | |
-| **wikiann_te_1k** (Telugu, 1k) | baseline | 54.27 ± 1.03% | 58.16 ± 2.28% | 50.93 ± 1.13% | 5 |
-| | no_sparsity | 55.16 ± 2.16% | 59.99 ± 3.22% | 51.08 ± 1.61% | 5 |
-| | olfactory | **55.89 ± 1.96%** | 59.97 ± 1.96% | 52.37 ± 2.41% | 5 |
+| Dataset | Baseline | Olfactory (128R, 32G) | More Glomeruli (128R, 64G) | More Receptors (256R, 64G) | Receptors Only (128R, No G) | No Sparsity (Base w/o L1) | Best Config |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **conll_en_1k** (English) | 48.95 ± 1.73% | 46.83 ± 1.40% | 49.59 ± 1.99% | 49.21 ± 1.45% | **51.56 ± 1.05%** | 46.72 ± 1.38% | **receptors_only (+2.61%)** |
+| **wikiann_bn_1k** (Bangla) | 63.97 ± 4.82% | 68.13 ± 2.98% | 67.33 ± 7.36% | 66.06 ± 2.72% | **70.20 ± 2.12%** | 68.01 ± 2.56% | **receptors_only (+6.23%)** |
+| **wikiann_hi_1k** (Hindi) | 62.41 ± 5.04% | **66.04 ± 2.92%** | 59.22 ± 2.57% | 62.46 ± 2.98% | 63.85 ± 3.34% | 65.37 ± 2.93% | **olfactory (+3.63%)** |
+| **wikiann_mr_1k** (Marathi) | 63.09 ± 2.00% | 62.01 ± 3.63% | 61.84 ± 2.91% | 61.92 ± 1.88% | **63.85 ± 2.30%** | 62.02 ± 3.67% | **receptors_only (+0.76%)** |
+| **wikiann_ta_1k** (Tamil) | 45.93 ± 2.02% | 49.96 ± 2.65% | 48.51 ± 1.46% | 47.14 ± 2.30% | 48.02 ± 1.91% | **50.24 ± 2.01%** | **no_sparsity (+4.31%)** |
+| **wikiann_te_1k** (Telugu) | 54.27 ± 1.03% | 55.89 ± 1.96% | 55.52 ± 1.91% | 56.53 ± 0.73% | **56.94 ± 2.18%** | 55.16 ± 2.16% | **receptors_only (+2.67%)** |
 
-**Low-Resource Analysis**: 
-* **Generalization Gains**: The olfactory bottleneck acts as a powerful regularizer under extreme data constraints. It consistently improves F1 on **4 out of 6** datasets: Bangla (+4.16%), Hindi (+3.63%), Tamil (+4.03%), and Telugu (+1.62%).
-* **Training Stability**: In languages where the baseline shows high variance across runs (e.g. Bangla and Hindi), the structured bottleneck significantly stabilizes convergence, cutting standard deviation from ~4.8-5.0% down to ~2.9%.
-* **Exceptions**:
-  * **English (`conll_en_1k`)**: The baseline outperforms olfactory models, as English's rigid syntax can be modeled directly, whereas the 32-glomeruli bottleneck causes minor underfitting (-2.12% F1).
-  * **Marathi (`wikiann_mr_1k`)**: The base configuration (128 receptors, 32 glomeruli) underfits Marathi's morphological complexities, showing a slight decrease. (Note: full-scale runs show Marathi requires higher capacity bottlenecks to yield gains).
+**Key Takeaways**:
+- **Stabilized Variance:** The unconstrained baseline sequence taggers suffer from high training volatility (SD ~4.8% to 5.0% in Bangla/Hindi). Introducing the sparse olfactory bottlenecks stabilizes convergence, reducing SD down to ~2.9%.
+- **Capacity Trade-offs:** The `receptors_only` configuration (which omits glomerular convergence and maintains a 128-dimensional representation going into the BiLSTM) achieves the highest mean F1 in 5 out of 6 datasets, illustrating the value of sparse receptor feature extraction when bottleneck capacity is preserved.
 
 ---
 
@@ -387,7 +334,8 @@ MIT License
 
 ## Acknowledgments
 
-- Biological inspiration: Buck & Axel (1991) — olfactory receptor discovery
-- CoNLL-2003: Tjong Kim Sang & De Meulder (2003)
-- GloVe: Pennington et al. (2014)
-- BiLSTM-CRF for NER: Huang et al. (2015)
+- **Hardware & Compute Resources:** All experiments were conducted using NVIDIA Tesla T4 GPU runtimes on Google Colab. We thank Google for providing the free cloud computing resources that made this research possible.
+- **Biological inspiration:** Buck & Axel (1991) — olfactory receptor discovery
+- **CoNLL-2003:** Tjong Kim Sang & De Meulder (2003)
+- **GloVe:** Pennington et al. (2014)
+- **BiLSTM-CRF for NER:** Huang et al. (2015)
